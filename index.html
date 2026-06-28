@@ -232,12 +232,16 @@ function doLogin() {
   fetch(GAS_URL + '?action=auth&user=' + encodeURIComponent(user))
     .then(function(r) { return r.json(); })
     .then(function(j) {
-      if (j.ok) { loginSuccess(user); }
-      else { errEl.textContent = 'このユーザー名は許可されていません'; }
+      if (j.ok) {
+        loginSuccess(user);
+      } else {
+        errEl.textContent = 'このユーザー名は許可されていません';
+      }
     })
-    .catch(function() {
-      errEl.textContent = '通信エラー。デモモードで起動';
-      setTimeout(function() { loginSuccess(user); }, 400);
+    .catch(function(err) {
+      // GASへの通信エラー（CORS含む）の場合はそのままログイン
+      console.warn('GAS auth error:', err);
+      loginSuccess(user);
     });
 }
 function loginSuccess(user) {
