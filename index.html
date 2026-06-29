@@ -1265,8 +1265,8 @@ function renderHistory() {
     '<div style="background:#fff;border-bottom:1px solid #e8eaf0;padding:10px 14px">' +
       '<div style="font-size:12px;font-weight:700;color:#1d3a6e;margin-bottom:8px">📋 保存済み記録</div>' +
       '<div style="display:flex;gap:8px">' +
-        '<button id="btn-hist-drive" onclick="loadDriveHistory()" style="flex:1;height:40px;border-radius:8px;border:2px solid #1d3a6e;background:#f0f4ff;color:#1d3a6e;font-size:12px;font-weight:700;cursor:pointer">☁ Driveから読込</button>' +
-        '<button id="btn-hist-local" onclick="loadLocalHistory()" style="flex:1;height:40px;border-radius:8px;border:2px solid #ddd;background:#f7f7f7;color:#666;font-size:12px;font-weight:700;cursor:pointer">端末から読込</button>' +
+        '<button id="btn-hist-drive" onclick="loadDriveHistory()" style="flex:1;height:44px;border-radius:8px;border:2px solid #1d3a6e;background:#f0f4ff;color:#1d3a6e;font-size:12px;font-weight:700;cursor:pointer;opacity:1">☁ Driveから読込</button>' +
+        '<button id="btn-hist-local" onclick="loadLocalHistory()" style="flex:1;height:44px;border-radius:8px;border:2px solid #ddd;background:#f7f7f7;color:#666;font-size:12px;font-weight:700;cursor:pointer;opacity:1">端末から読込</button>' +
       '</div>' +
     '</div>' +
     '<div id="hist-source" style="display:none;padding:5px 14px;font-size:11px;font-weight:700;background:#e8f5e9;color:#2e7d32;border-bottom:1px solid #c8e6c9"></div>' +
@@ -1290,12 +1290,17 @@ function setHistUI(mode, msg) {
   var bl = document.getElementById('btn-hist-local');
   var src = document.getElementById('hist-source');
   if (bd && bl) {
+    // 両ボタンを常に押せる状態にする
     if (mode === 'drive') {
-      bd.style.background = '#fff'; bd.style.color = '#1d3a6e';
-      bl.style.background = 'rgba(255,255,255,.2)'; bl.style.color = '#fff';
+      bd.style.background = '#1d3a6e'; bd.style.color = '#fff';
+      bd.style.borderColor = '#1d3a6e'; bd.style.opacity = '1';
+      bl.style.background = '#f7f7f7'; bl.style.color = '#666';
+      bl.style.borderColor = '#ddd'; bl.style.opacity = '1';
     } else {
-      bl.style.background = '#fff'; bl.style.color = '#e65100';
-      bd.style.background = 'rgba(255,255,255,.2)'; bd.style.color = '#fff';
+      bl.style.background = '#e65100'; bl.style.color = '#fff';
+      bl.style.borderColor = '#e65100'; bl.style.opacity = '1';
+      bd.style.background = '#f0f4ff'; bd.style.color = '#1d3a6e';
+      bd.style.borderColor = '#1d3a6e'; bd.style.opacity = '1';
     }
   }
   if (src && msg) {
@@ -1303,7 +1308,6 @@ function setHistUI(mode, msg) {
     src.style.display = 'block';
     src.style.color = mode === 'drive' ? '#1565c0' : '#e65100';
     src.style.background = mode === 'drive' ? '#e3f2fd' : '#fff3e0';
-    src.style.borderColor = mode === 'drive' ? '#bee3f8' : '#ffe0b2';
   }
 }
 
@@ -1314,8 +1318,6 @@ function loadDriveHistory() {
   if (GAS_URL.indexOf('YOUR_SCRIPT_ID') >= 0) {
     showToast('GAS URLが未設定です', 'warn'); return;
   }
-  setHistSourceBar('☁️ Google Drive から読み込み中...', '#e3f2fd', '#1565c0');
-  setHistActiveBtn('drive');
   setHistUI('drive', 'Driveから読み込み中...');
   fetch(GAS_URL + '?action=getHistory')
     .then(function(r) { return r.json(); })
@@ -1340,113 +1342,179 @@ function renderHistList(hist, source) {
       '<div class="hist-name">📋 ' + escHtml(h.facility || '未設定') + '</div>' +
       '<div class="hist-meta">' + escHtml(h.date || '') + ' ／ ' + escHtml(h.inspector || '不明') + ' ／ ' + (h.savedAt || '').slice(0, 16).replace('T', ' ') + '</div>' +
       '<div class="hist-detail" id="hd' + i + '"></div>';
-    div.onclick = function() {
-      var det = document.getElementById('hd' + i);
-      if (!det) return;
-      if (det.classList.contains('open')) { det.classList.remove('open'); return; }
-      // 端末ストレージからJSONデータを読み込んで詳細表示
-      det.innerHTML = '<div style="color:#aaa;font-size:11px;padding:4px 0">読み込み中...</div>';
-      det.classList.add('open');
-      var stored = store_get(h.key);
-      if (stored) {
-        try {
-          var data = JSON.parse(stored.value);
-          det.innerHTML = buildDetailHtml(data);
-        } catch(e) {
-          det.innerHTML = '<div style="font-size:11px;color:#888">' + escHtml(h.summary || '詳細データなし').replace(/\n/g,'<br>') + '</div>';
+    (function(h) {
+      div.onclick = function() {
+        // まずkeyで検索、なければ日付ベースのキーで再検索
+        var stored = h.key ? store_get(h.key) : null;
+        if (!stored && h.date) {
+          // 日付からキーを生成して再検索
+          var altKey = 'tenken-' + (h.savedAt||'').slice(0,10).replace(/-/g,'');
+          stored = store_get(altKey);
         }
-      } else {
-        det.innerHTML = '<div style="font-size:11px;color:#888">' + escHtml(h.summary || '端末にデータが見つかりません').replace(/\n/g,'<br>') + '</div>';
-      }
-    };
+        if (stored) {
+          try {
+            var data = JSON.parse(stored.value);
+            showLocalPreview(h, data);
+          } catch(e) {
+            showToast('データの読み込みに失敗しました', 'err');
+          }
+        } else {
+          // データが端末にない場合はsummaryだけ表示
+          showLocalPreviewSummary(h);
+        }
+      };
+    })(h);
     list.appendChild(div);
   });
 }
 
 function buildDetailHtml(data) {
   var jl = { ok: '〇', warn: '△', na: '－', '': '－' };
-  var html = '';
+  var out = '';
   // 基本情報
-  html += '<div style="font-size:11px;color:#555;margin-bottom:6px">' +
-    '点検日: <b>' + escHtml(data.date||'') + '</b>　点検者: <b>' + escHtml(data.inspector||'') + '</b></div>';
+  out += '<div style="background:#f0f4ff;border-radius:8px;padding:8px 10px;margin-bottom:8px;font-size:11px;color:#1d3a6e">' +
+    '<b>点検日:</b> ' + escHtml(data.date||'') + '　<b>点検者:</b> ' + escHtml(data.inspector||'') + '</div>';
   // 電気室
   (data.elec||[]).forEach(function(pg) {
-    html += '<div style="background:#1d3a6e;color:#fff;padding:5px 8px;border-radius:6px;font-size:11px;font-weight:700;margin:8px 0 4px">⚡ ' + escHtml(pg.label||'') + ' — ' + escHtml(pg.facility||'') + '</div>';
-    html += '<div style="font-size:11px;color:#555;margin-bottom:4px">気温: ' + escHtml(pg.temp||'-') + '°C　湿度: ' + escHtml(pg.hum||'-') + '%</div>';
+    out += '<div style="background:#1d3a6e;color:#fff;padding:5px 8px;border-radius:6px;font-size:11px;font-weight:700;margin:8px 0 4px">⚡ ' + escHtml(pg.label||'') + ' — ' + escHtml(pg.facility||'') + '</div>';
+    out += '<div style="font-size:11px;color:#555;margin-bottom:4px">気温: ' + escHtml(pg.temp||'-') + '°C　湿度: ' + escHtml(pg.hum||'-') + '%</div>';
     // 電力量計
     if (pg.kensin1) {
-      html += '<div style="font-size:11px;font-weight:700;color:#1d3a6e;margin:4px 0 2px">電力量計（検針）乗率×' + (pg.kensin1.mult||'') + '</div>';
-      html += detRow('全日電力量', pg.kensin1.all, 'kW') + detRow('有効電力量', pg.kensin1.eff, 'kW') + detRow('力率', pg.kensin1.pf, '') + detRow('最大需要電力', pg.kensin1.maxd, 'kW');
+      out += secHead('電力量計（検針）乗率×' + (pg.kensin1.mult||''));
+      out += detRow('全日電力量', pg.kensin1.all, 'kW') + detRow('有効電力量', pg.kensin1.eff, 'kW') + detRow('無効電力量', pg.kensin1.react, 'kW') + detRow('力率', pg.kensin1.pf, '') + detRow('最大需要電力', pg.kensin1.maxd, 'kW') + detRow('累計最大電力', pg.kensin1.cumax, 'kW');
+      (pg.kensin1.extras||[]).forEach(function(ex){ if(ex.label) out += detRow(ex.label, ex.val, 'kW'); });
     }
     if (pg.kensin2) {
-      html += '<div style="font-size:11px;font-weight:700;color:#1d3a6e;margin:4px 0 2px">電力量計（本日）</div>';
-      html += detRow('全日電力量', pg.kensin2.all, 'kW') + detRow('有効電力量', pg.kensin2.eff, 'kW') + detRow('需要電力', pg.kensin2.maxd, 'kW');
+      out += secHead('電力量計（本日）');
+      out += detRow('全日電力量', pg.kensin2.all, 'kW') + detRow('有効電力量', pg.kensin2.eff, 'kW') + detRow('無効電力量', pg.kensin2.react, 'kW') + detRow('力率', pg.kensin2.pf, '') + detRow('需要電力', pg.kensin2.maxd, 'kW');
+      (pg.kensin2.extras||[]).forEach(function(ex){ if(ex.label) out += detRow(ex.label, ex.val, 'kW'); });
     }
     // 電圧・電流
-    html += '<div style="font-size:11px;font-weight:700;color:#1d3a6e;margin:4px 0 2px">電圧・電流（高圧）</div>';
-    html += detRow('電圧 R相', pg.vr, 'kV') + detRow('電圧 S相', pg.vs, 'kV') + detRow('電圧 T相', pg.vt, 'kV');
-    html += detRow('電流 R相', pg.ar, 'A') + detRow('電流 S相', pg.as, 'A') + detRow('電流 T相', pg.at, 'A');
-    html += detRow('電力', pg.power, 'kW');
+    out += secHead('電圧・電流（高圧）');
+    out += detRow('電圧 R相', pg.vr, 'kV') + detRow('電圧 S相', pg.vs, 'kV') + detRow('電圧 T相', pg.vt, 'kV');
+    out += detRow('電流 R相', pg.ar, 'A') + detRow('電流 S相', pg.as, 'A') + detRow('電流 T相', pg.at, 'A');
+    out += detRow('電力（自動計算）', pg.power, 'kW');
     // 点検項目サマリー
     var judgments = pg.judgments || {};
-    var ok = 0, w = 0, na = 0, total = Object.keys(judgments).length;
-    Object.keys(judgments).forEach(function(k) { if(judgments[k]==='ok')ok++; else if(judgments[k]==='warn')w++; else if(judgments[k]==='na')na++; });
-    html += '<div style="font-size:11px;font-weight:700;color:#1d3a6e;margin:4px 0 2px">点検項目</div>';
-    html += '<div style="font-size:11px;display:flex;gap:12px;margin-bottom:2px">' +
-      '<span style="color:#2e7d32">〇 良好: ' + ok + '</span>' +
-      '<span style="color:#e65100">△ 要観察: ' + w + '</span>' +
-      '<span style="color:#888">－ 対象外: ' + na + '</span>' +
+    var okCnt = 0, wCnt = 0, naCnt = 0;
+    Object.keys(judgments).forEach(function(k) { if(judgments[k]==='ok')okCnt++; else if(judgments[k]==='warn')wCnt++; else if(judgments[k]==='na')naCnt++; });
+    out += secHead('点検項目');
+    out += '<div style="font-size:11px;display:flex;gap:12px;margin-bottom:4px">' +
+      '<span style="color:#2e7d32;font-weight:700">〇 ' + okCnt + '</span>' +
+      '<span style="color:#e65100;font-weight:700">△ ' + wCnt + '</span>' +
+      '<span style="color:#888;font-weight:700">－ ' + naCnt + '</span>' +
       '</div>';
-    // 要観察項目を表示
-    if (w > 0) {
-      html += '<div style="font-size:11px;color:#e65100;margin-bottom:2px">要観察項目:</div>';
+    // 要観察項目
+    if (wCnt > 0) {
+      out += '<div style="font-size:11px;color:#e65100;font-weight:700;margin-bottom:2px">要観察項目:</div>';
       Object.keys(judgments).forEach(function(k) {
         if (judgments[k] === 'warn') {
           var lbl = ELEC_ITEMS[parseInt(k)] || k;
-          html += '<div style="font-size:11px;color:#e65100;padding-left:8px">△ ' + escHtml(lbl) + '</div>';
+          out += '<div style="font-size:11px;color:#e65100;padding:2px 0 2px 8px;border-left:2px solid #e65100">△ ' + escHtml(lbl) + '</div>';
         }
       });
     }
     // 変圧器
     if (pg.transformers && pg.transformers.length) {
-      html += '<div style="font-size:11px;font-weight:700;color:#1d3a6e;margin:4px 0 2px">高圧変圧器</div>';
+      out += secHead('高圧変圧器');
       pg.transformers.forEach(function(t) {
-        html += '<div style="font-size:11px;color:#555;padding-left:6px;border-left:2px solid #1d3a6e;margin:2px 0">' +
-          escHtml(t.label||'') + '（' + escHtml(t.use||'') + '）: 電圧R' + escHtml(t.vr||'-') + 'V　電流R' + escHtml(t.ar||'-') + 'A　温度' + escHtml(t.tp||'-') + '℃' +
-          '</div>';
+        out += '<div style="font-size:11px;font-weight:700;color:#555;margin:4px 0 2px">' + escHtml(t.label||'変圧器') + '（' + escHtml(t.use||'') + '）</div>';
+        out += detRow('電圧 R相', t.vr, 'V') + detRow('電圧 S相', t.vs, 'V') + detRow('電圧 T相', t.vt, 'V');
+        out += detRow('電流 R相', t.ar, 'A') + detRow('電流 S相', t.as, 'A') + detRow('電流 T相', t.at, 'A');
+        out += detRow('温度', t.tp, '℃') + detRow('漏れ電流', t.lk, 'mA');
       });
+    }
+    // 高圧機器
+    if (pg.kiki && pg.kiki.length) {
+      out += secHead('高圧機器');
+      pg.kiki.forEach(function(k) { out += detRow(k.type, k.tmp, '℃'); });
+    }
+    // 各種測定値
+    if (pg.sokVals) {
+      out += secHead('各種測定値');
+      Object.keys(pg.sokVals).forEach(function(k) { out += detRow(k, pg.sokVals[k], 'mA'); });
+      (pg.sokEx||[]).forEach(function(ex){ if(ex.label) out += detRow(ex.label, ex.val, 'mA'); });
     }
     // 記事欄
     if (pg.notes && pg.notes !== '-') {
-      html += '<div style="font-size:11px;font-weight:700;color:#1d3a6e;margin:4px 0 2px">記事欄</div>';
-      html += '<div style="font-size:11px;color:#555;white-space:pre-wrap;background:#f7f9fc;padding:6px 8px;border-radius:6px">' + escHtml(pg.notes) + '</div>';
+      out += secHead('記事欄');
+      out += '<div style="font-size:11px;color:#555;white-space:pre-wrap;background:#f7f9fc;padding:6px 8px;border-radius:6px;border:1px solid #e8eaf0">' + escHtml(pg.notes) + '</div>';
     }
   });
   // 発電機
   (data.gen||[]).forEach(function(pg) {
-    html += '<div style="background:#e65100;color:#fff;padding:5px 8px;border-radius:6px;font-size:11px;font-weight:700;margin:8px 0 4px">🔥 ' + escHtml(pg.label||'') + '</div>';
+    out += '<div style="background:#e65100;color:#fff;padding:6px 10px;border-radius:6px;font-size:12px;font-weight:700;margin:10px 0 4px">🔥 ' + escHtml(pg.label||'') + '</div>';
     var judgments = pg.judgments || {};
-    var w = Object.keys(judgments).filter(function(k){return judgments[k]==='warn';}).length;
-    var ok = Object.keys(judgments).filter(function(k){return judgments[k]==='ok';}).length;
-    html += '<div style="font-size:11px;display:flex;gap:12px;margin-bottom:4px"><span style="color:#2e7d32">〇 ' + ok + '</span><span style="color:#e65100">△ ' + w + '</span></div>';
+    var wCnt = Object.keys(judgments).filter(function(k){return judgments[k]==='warn';}).length;
+    var okCnt = Object.keys(judgments).filter(function(k){return judgments[k]==='ok';}).length;
+    var naCnt = Object.keys(judgments).filter(function(k){return judgments[k]==='na';}).length;
+    out += '<div style="font-size:11px;display:flex;gap:12px;margin-bottom:6px">' +
+      '<span style="color:#2e7d32;font-weight:700">〇 ' + okCnt + '</span>' +
+      '<span style="color:#e65100;font-weight:700">△ ' + wCnt + '</span>' +
+      '<span style="color:#888;font-weight:700">－ ' + naCnt + '</span></div>';
+    if (wCnt > 0) {
+      out += '<div style="font-size:11px;color:#e65100;font-weight:700;margin-bottom:2px">要観察項目:</div>';
+      Object.keys(judgments).forEach(function(k) {
+        if (judgments[k]==='warn') { out += '<div style="font-size:11px;color:#e65100;padding:2px 0 2px 8px;border-left:2px solid #e65100">△ ' + escHtml(GEN_ITEMS[parseInt(k)]||k) + '</div>'; }
+      });
+    }
     (pg.generators||[]).forEach(function(g) {
-      html += '<div style="font-size:11px;color:#555;padding-left:6px;border-left:2px solid #e65100;margin:2px 0">' +
-        escHtml(g.label||'発電機') + ': 燃料' + escHtml(g.fuel||'-') + '%　電圧' + escHtml(g.volt||'-') + 'V　周波数' + escHtml(g.freq||'-') + 'Hz' +
-        '</div>';
+      out += secHead(escHtml(g.label||'発電機'));
+      out += detRow('燃料', g.fuel, '%') + detRow('回転数', g.rpm, 'rpm') + detRow('冷却水温度', g.coolant, '°C');
+      out += detRow('油量', g.oil, '') + detRow('油圧', g.oilp, 'MPa');
+      out += detRow('電圧', g.volt, 'V') + detRow('周波数', g.freq, 'Hz') + detRow('累積運転時間', g.hours, 'H');
+      out += detRow('バッテリー電圧', g.batt, 'V') + detRow('バッテリー比重', g.sg, '') + detRow('バッテリー液面', g.bliq, '') + detRow('バッテリー温度', g.btemp, '℃');
     });
+    if (pg.notes && pg.notes !== '-') {
+      out += secHead('記事欄');
+      out += '<div style="font-size:11px;color:#555;white-space:pre-wrap;background:#f7f9fc;padding:6px 8px;border-radius:6px">' + escHtml(pg.notes) + '</div>';
+    }
   });
   // 太陽光
   (data.solar||[]).forEach(function(pg) {
-    html += '<div style="background:#f57f17;color:#fff;padding:5px 8px;border-radius:6px;font-size:11px;font-weight:700;margin:8px 0 4px">☀️ ' + escHtml(pg.label||'') + '</div>';
+    out += '<div style="background:#f57f17;color:#fff;padding:6px 10px;border-radius:6px;font-size:12px;font-weight:700;margin:10px 0 4px">☀️ ' + escHtml(pg.label||'') + '</div>';
     var judgments = pg.judgments || {};
-    var w = Object.keys(judgments).filter(function(k){return judgments[k]==='warn';}).length;
-    var ok = Object.keys(judgments).filter(function(k){return judgments[k]==='ok';}).length;
-    html += '<div style="font-size:11px;display:flex;gap:12px;margin-bottom:4px"><span style="color:#2e7d32">〇 ' + ok + '</span><span style="color:#e65100">△ ' + w + '</span></div>';
-    html += detRow('電圧R相', pg.vr, 'kV') + detRow('電流R相', pg.ar, 'A') + detRow('電力', pg.power, 'kW');
+    var wCnt2 = Object.keys(judgments).filter(function(k){return judgments[k]==='warn';}).length;
+    var okCnt2 = Object.keys(judgments).filter(function(k){return judgments[k]==='ok';}).length;
+    var naCnt2 = Object.keys(judgments).filter(function(k){return judgments[k]==='na';}).length;
+    out += '<div style="font-size:11px;display:flex;gap:12px;margin-bottom:6px">' +
+      '<span style="color:#2e7d32;font-weight:700">〇 ' + okCnt2 + '</span>' +
+      '<span style="color:#e65100;font-weight:700">△ ' + wCnt2 + '</span>' +
+      '<span style="color:#888;font-weight:700">－ ' + naCnt2 + '</span></div>';
+    if (wCnt2 > 0) {
+      out += '<div style="font-size:11px;color:#e65100;font-weight:700;margin-bottom:2px">要観察項目:</div>';
+      Object.keys(judgments).forEach(function(k) {
+        if (judgments[k]==='warn') { out += '<div style="font-size:11px;color:#e65100;padding:2px 0 2px 8px;border-left:2px solid #e65100">△ ' + escHtml(SOLAR_ITEMS[parseInt(k)]||k) + '</div>'; }
+      });
+    }
+    out += secHead('電圧・電流（高圧）');
+    out += detRow('電圧 R相', pg.vr, 'kV') + detRow('電圧 S相', pg.vs, 'kV') + detRow('電圧 T相', pg.vt, 'kV');
+    out += detRow('電流 R相', pg.ar, 'A') + detRow('電流 S相', pg.as, 'A') + detRow('電流 T相', pg.at, 'A');
+    out += detRow('電力（自動計算）', pg.power, 'kW');
+    if (pg.transformers && pg.transformers.length) {
+      out += secHead('高圧変圧器');
+      pg.transformers.forEach(function(t) {
+        out += '<div style="font-size:11px;font-weight:700;color:#555;margin:4px 0 2px">' + escHtml(t.label||'変圧器') + '（' + escHtml(t.use||'') + '）</div>';
+        out += detRow('電圧 R相', t.vr, 'V') + detRow('電圧 S相', t.vs, 'V') + detRow('電圧 T相', t.vt, 'V');
+        out += detRow('電流 R相', t.ar, 'A') + detRow('電流 S相', t.as, 'A') + detRow('電流 T相', t.at, 'A');
+        out += detRow('温度', t.tp, '℃') + detRow('漏れ電流', t.lk, 'mA');
+      });
+    }
+    if (pg.kiki && pg.kiki.length) {
+      out += secHead('高圧機器');
+      pg.kiki.forEach(function(k) { out += detRow(k.type, k.tmp, '℃'); });
+    }
+    if (pg.notes && pg.notes !== '-') {
+      out += secHead('記事欄');
+      out += '<div style="font-size:11px;color:#555;white-space:pre-wrap;background:#f7f9fc;padding:6px 8px;border-radius:6px;border:1px solid #e8eaf0">' + escHtml(pg.notes) + '</div>';
+    }
   });
-  return html || '<div style="font-size:11px;color:#aaa">データなし</div>';
+  return out || '<div style="font-size:11px;color:#aaa">データなし</div>';
 }
 
+function secHead(title) {
+  return '<div style="font-size:11px;font-weight:700;color:#1d3a6e;background:#f0f4ff;padding:4px 8px;border-radius:4px;margin:8px 0 4px">' + title + '</div>';
+}
 function detRow(label, val, unit) {
   if (!val || val === '-') return '';
   return '<div style="display:flex;align-items:baseline;padding:2px 0;border-bottom:1px solid #f5f5f5;gap:8px">' +
@@ -1485,6 +1553,38 @@ function downloadDriveFile(fileId, fileName) {
       showCsvViewer(data.name || fileName, data.content || '');
     })
     .catch(function() { showToast('読み込み失敗\nGAS URLを確認してください', 'err'); });
+}
+
+function showLocalPreviewSummary(h) {
+  var ov = document.createElement('div');
+  ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:300;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;padding-top:10px';
+  var box = document.createElement('div');
+  box.style.cssText = 'background:#fff;border-radius:12px;width:96vw;max-width:480px;max-height:90vh;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 8px 32px rgba(0,0,0,.3)';
+  var hdr = document.createElement('div');
+  hdr.style.cssText = 'padding:12px 14px;background:#1d3a6e;color:#fff;display:flex;align-items:center;gap:8px;flex-shrink:0';
+  var titleWrap = document.createElement('div'); titleWrap.style.flex = '1';
+  titleWrap.innerHTML = '<div style="font-size:12px;font-weight:700">' + escHtml(h.facility||'未設定') + '</div>' +
+    '<div style="font-size:10px;opacity:.8">' + escHtml(h.date||'') + '　' + escHtml(h.inspector||'') + '</div>';
+  var btnCl = document.createElement('button');
+  btnCl.textContent = '✕ 閉じる';
+  btnCl.style.cssText = 'height:28px;padding:0 10px;border-radius:6px;border:none;background:rgba(255,255,255,.2);color:#fff;font-size:11px;cursor:pointer;flex-shrink:0';
+  btnCl.onclick = function() { document.body.removeChild(ov); };
+  hdr.appendChild(titleWrap); hdr.appendChild(btnCl);
+  var body = document.createElement('div');
+  body.style.cssText = 'overflow-y:auto;flex:1;padding:12px 14px';
+  var summaryHtml = escHtml(h.summary||'詳細なし').split('\n').join('<br>');
+  body.innerHTML = '<div style="background:#fff8e1;border-radius:8px;padding:10px;font-size:11px;color:#e65100;margin-bottom:10px">詳細データが端末に見つかりません。保存時のデータのみ表示しています。</div>' +
+    '<div style="font-size:11px;color:#555;line-height:1.8">' + summaryHtml + '</div>';
+  box.appendChild(hdr); box.appendChild(body);
+  ov.appendChild(box);
+  ov.onclick = function(e) { if (e.target === ov) document.body.removeChild(ov); };
+  document.body.appendChild(ov);
+}
+
+function showLocalPreview(h, data) {
+  // JSONデータからCSVを生成してCsvViewerで表示（Drive版と統一）
+  var built = buildCSV(data);
+  showCsvViewer(built.fname, built.csv);
 }
 
 function showCsvViewer(fileName, csvText) {
