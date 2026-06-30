@@ -149,6 +149,18 @@ body{font-family:-apple-system,sans-serif;background:#f0f2f5;color:#111;font-siz
 .toast.ok{background:#1d3a6e;color:#fff}
 .toast.err{background:#c62828;color:#fff}
 .toast.warn{background:#e65100;color:#fff}
+/* カスタムテンキー */
+.numpad-overlay{position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:500;display:flex;align-items:flex-end;justify-content:center}
+.numpad-box{background:#f2f2f7;width:100%;max-width:480px;border-radius:16px 16px 0 0;padding:10px 10px 24px;box-shadow:0 -4px 20px rgba(0,0,0,.2)}
+.numpad-display{background:#fff;border-radius:10px;padding:10px 14px;margin-bottom:10px;min-height:52px;display:flex;flex-direction:column;justify-content:flex-end}
+.numpad-label{font-size:11px;color:#888;margin-bottom:2px}
+.numpad-val{font-size:28px;font-weight:600;color:#111;text-align:right;word-break:break-all}
+.numpad-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.npbtn{height:58px;border-radius:10px;border:none;font-size:22px;font-weight:500;cursor:pointer;transition:transform .1s;background:#fff;color:#111;box-shadow:0 2px 4px rgba(0,0,0,.1)}
+.npbtn:active{transform:scale(.93);background:#e0e0e0}
+.npbtn.np-action{background:#d1d5db;color:#111}
+.npbtn.np-ok{background:#1d3a6e;color:#fff;font-size:18px}
+.npbtn.np-minus{background:#fff;color:#1d3a6e;font-size:18px}
 </style>
 </head>
 <body>
@@ -462,7 +474,11 @@ function switchTab(pid) {
 
 // ===== ヘルパー =====
 function mInp(id, ro) {
-  return '<input class="minp' + (ro ? ' af' : '') + '" type="text" inputmode="decimal" id="' + id + '" placeholder="-"' + (ro ? ' readonly' : '') + ' oninput="markUnsaved()">';
+  if (ro) {
+    return '<input class="minp af" type="text" id="' + id + '" placeholder="-" readonly>';
+  }
+  return '<input class="minp" type="text" id="' + id + '" placeholder="-" readonly ' +
+    'onfocus="openNumpad(this)" onclick="openNumpad(this)">';
 }
 function oxBtns(key) {
   return '<div class="oxbtns" data-oxk="' + key + '"><button class="oxbtn ok" onclick="setOX(this,\'ok\')">〇</button><button class="oxbtn ng" onclick="setOX(this,\'ng\')">×</button></div>';
@@ -716,7 +732,7 @@ function buildElecPage(pid) {
       '<div class="mrow"><div class="mlabel">無効電力量</div>' + mInp(pid + '-k1-react') + '<div class="munit">kW</div></div>' +
       '<div class="mrow"><div class="mlabel">力率</div>' +
         '<input class="minp" type="text" inputmode="decimal" id="' + pid + '-k1-pf" placeholder="-" oninput="syncPf(\'' + pid + '\');markUnsaved()">' +
-        '<div class="munit">kW</div></div>' +
+        '<div class="munit">%</div></div>' +
       '<div class="mrow"><div class="mlabel">最大需要電力</div>' + mInp(pid + '-k1-maxd') + '<div class="munit">kW</div></div>' +
       '<div class="mrow"><div class="mlabel">累計最大電力</div>' + mInp(pid + '-k1-cumax') + '<div class="munit">kW</div></div>' +
       '<div id="' + pid + '-k1-extra"></div>' +
@@ -728,7 +744,7 @@ function buildElecPage(pid) {
       '<div class="mrow"><div class="mlabel">全日電力量</div>' + mInp(pid + '-k2-all') + '<div class="munit">kW</div></div>' +
       '<div class="mrow"><div class="mlabel">有効電力量</div>' + mInp(pid + '-k2-eff') + '<div class="munit">kW</div></div>' +
       '<div class="mrow"><div class="mlabel">無効電力量</div>' + mInp(pid + '-k2-react') + '<div class="munit">kW</div></div>' +
-      '<div class="mrow"><div class="mlabel">力率<div class="mhint">検針から自動入力</div></div>' + mInp(pid + '-k2-pf', true) + '<div class="munit">kW</div></div>' +
+      '<div class="mrow"><div class="mlabel">力率<div class="mhint">検針から自動入力</div></div>' + mInp(pid + '-k2-pf', true) + '<div class="munit">%</div></div>' +
       '<div class="mrow"><div class="mlabel">需要電力</div>' + mInp(pid + '-k2-maxd') + '<div class="munit">kW</div></div>' +
       '<div id="' + pid + '-k2-extra"></div>' +
       '<div class="add-row" style="border-top:1px dashed #dde4f8"><button class="btn-add" style="font-size:11px;height:28px" onclick="addExtraRow(\'' + pid + '\',\'k2\')">＋ 行を追加</button></div>' +
@@ -1404,12 +1420,12 @@ function buildDetailHtml(data) {
     // 電力量計
     if (pg.kensin1) {
       out += secHead('電力量計（検針）乗率×' + (pg.kensin1.mult||''));
-      out += detRow('全日電力量', pg.kensin1.all, 'kW') + detRow('有効電力量', pg.kensin1.eff, 'kW') + detRow('無効電力量', pg.kensin1.react, 'kW') + detRow('力率', pg.kensin1.pf, '') + detRow('最大需要電力', pg.kensin1.maxd, 'kW') + detRow('累計最大電力', pg.kensin1.cumax, 'kW');
+      out += detRow('全日電力量', pg.kensin1.all, 'kW') + detRow('有効電力量', pg.kensin1.eff, 'kW') + detRow('無効電力量', pg.kensin1.react, 'kW') + detRow('力率', pg.kensin1.pf, '%') + detRow('最大需要電力', pg.kensin1.maxd, 'kW') + detRow('累計最大電力', pg.kensin1.cumax, 'kW');
       (pg.kensin1.extras||[]).forEach(function(ex){ if(ex.label) out += detRow(ex.label, ex.val, 'kW'); });
     }
     if (pg.kensin2) {
       out += secHead('電力量計（本日）');
-      out += detRow('全日電力量', pg.kensin2.all, 'kW') + detRow('有効電力量', pg.kensin2.eff, 'kW') + detRow('無効電力量', pg.kensin2.react, 'kW') + detRow('力率', pg.kensin2.pf, '') + detRow('需要電力', pg.kensin2.maxd, 'kW');
+      out += detRow('全日電力量', pg.kensin2.all, 'kW') + detRow('有効電力量', pg.kensin2.eff, 'kW') + detRow('無効電力量', pg.kensin2.react, 'kW') + detRow('力率', pg.kensin2.pf, '%') + detRow('需要電力', pg.kensin2.maxd, 'kW');
       (pg.kensin2.extras||[]).forEach(function(ex){ if(ex.label) out += detRow(ex.label, ex.val, 'kW'); });
     }
     // 電圧・電流
@@ -1687,6 +1703,114 @@ function showHistory() {
   if (old) old.remove();
   renderHistory();       // ページ生成＆データ読み込み
   switchTab('hist');     // 生成済みページを表示
+}
+
+// ===== カスタムテンキー =====
+var numpadTarget = null;
+
+function openNumpad(inp) {
+  if (inp.readOnly || inp.classList.contains('af')) return;
+  numpadTarget = inp;
+  var existing = document.getElementById('numpad-overlay');
+  if (existing) document.body.removeChild(existing);
+
+  var ov = document.createElement('div');
+  ov.className = 'numpad-overlay'; ov.id = 'numpad-overlay';
+
+  var box = document.createElement('div'); box.className = 'numpad-box';
+
+  // ディスプレイ
+  var disp = document.createElement('div'); disp.className = 'numpad-display';
+  var lbl = document.createElement('div'); lbl.className = 'numpad-label';
+  // ラベルはinputの前のmlabel要素から取得
+  var row = inp.closest('.mrow');
+  lbl.textContent = row ? (row.querySelector('.mlabel') ? row.querySelector('.mlabel').textContent.trim() : '') : '';
+  var val = document.createElement('div'); val.className = 'numpad-val'; val.id = 'numpad-val';
+  val.textContent = inp.value || '-';
+  disp.appendChild(lbl); disp.appendChild(val); box.appendChild(disp);
+
+  // グリッド
+  var grid = document.createElement('div'); grid.className = 'numpad-grid';
+  var btns = [
+    ['7','8','9'],
+    ['4','5','6'],
+    ['1','2','3'],
+    ['-','0','.'],
+  ];
+  btns.forEach(function(row) {
+    row.forEach(function(b) {
+      var btn = document.createElement('button');
+      btn.className = 'npbtn' + (b === '-' ? ' np-minus' : '');
+      btn.textContent = b;
+      btn.onclick = function(e) { e.preventDefault(); numpadInput(b); };
+      grid.appendChild(btn);
+    });
+  });
+  // 最下行：消去・OK
+  var delBtn = document.createElement('button');
+  delBtn.className = 'npbtn np-action'; delBtn.textContent = '⌫';
+  delBtn.style.fontSize = '20px';
+  delBtn.onclick = function(e) { e.preventDefault(); numpadDel(); };
+
+  var clrBtn = document.createElement('button');
+  clrBtn.className = 'npbtn np-action'; clrBtn.textContent = 'C';
+  clrBtn.onclick = function(e) { e.preventDefault(); numpadClear(); };
+
+  var okBtn = document.createElement('button');
+  okBtn.className = 'npbtn np-ok'; okBtn.textContent = '完了';
+  okBtn.onclick = function(e) { e.preventDefault(); closeNumpad(); };
+
+  grid.appendChild(delBtn); grid.appendChild(clrBtn); grid.appendChild(okBtn);
+  box.appendChild(grid); ov.appendChild(box);
+
+  // 背景タップで閉じる
+  ov.onclick = function(e) { if (e.target === ov) closeNumpad(); };
+  document.body.appendChild(ov);
+}
+
+function numpadInput(ch) {
+  if (!numpadTarget) return;
+  var cur = numpadTarget.value;
+  if (cur === '-' && ch !== '-') cur = '';
+  if (ch === '-') { cur = cur === '-' ? '' : '-'; }
+  else if (ch === '.') { if (!cur.includes('.')) cur += '.'; }
+  else { if (cur === '0') cur = ch; else cur += ch; }
+  numpadTarget.value = cur;
+  var v = document.getElementById('numpad-val');
+  if (v) v.textContent = cur || '-';
+  markUnsaved();
+}
+
+function numpadDel() {
+  if (!numpadTarget) return;
+  var cur = numpadTarget.value;
+  cur = cur.slice(0, -1);
+  numpadTarget.value = cur;
+  var v = document.getElementById('numpad-val');
+  if (v) v.textContent = cur || '-';
+  markUnsaved();
+}
+
+function numpadClear() {
+  if (!numpadTarget) return;
+  numpadTarget.value = '';
+  var v = document.getElementById('numpad-val');
+  if (v) v.textContent = '-';
+  markUnsaved();
+}
+
+function closeNumpad() {
+  var ov = document.getElementById('numpad-overlay');
+  if (ov) document.body.removeChild(ov);
+  if (numpadTarget) {
+    // 空の場合は'-'をセット
+    if (numpadTarget.value === '') numpadTarget.value = '-';
+    // 力率同期など関連処理を発火
+    var ev = document.createEvent('Event');
+    ev.initEvent('change', true, true);
+    numpadTarget.dispatchEvent(ev);
+    numpadTarget = null;
+  }
 }
 
 function showToast(msg, type) {
