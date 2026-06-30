@@ -298,6 +298,7 @@ function loginSuccess(user) {
   renderTabs();
   // GAS設定済みならDrive状態を接続中に表示
   if (GAS_URL.indexOf('YOUR_SCRIPT_ID') < 0) { gasConnected = true; updateDriveSt(true); }
+  loadAnnounce(); // 今月の注意事項をスプレッドシートから取得
   // 事業所リストをGASから取得してからページ構築
   loadUserFacilities(function() {
     addToolPage();
@@ -527,7 +528,21 @@ function toggle(hdr) {
   body.classList.toggle('collapsed');
   if (tog) tog.style.transform = body.classList.contains('collapsed') ? 'rotate(-90deg)' : '';
 }
-function announceHtml() { return '<div class="announce">📢 ' + ANNOUNCE + '</div>'; }
+function announceHtml() { return '<div class="announce announce-box">📢 ' + escHtml(ANNOUNCE) + '</div>'; }
+function loadAnnounce() {
+  if (GAS_URL.indexOf('YOUR_SCRIPT_ID') >= 0) return;
+  fetch(GAS_URL + '?action=getAnnounce')
+    .then(function(r) { return r.json(); })
+    .then(function(j) {
+      if (j.ok && j.text) {
+        ANNOUNCE = j.text;
+        document.querySelectorAll('.announce-box').forEach(function(el) {
+          el.textContent = '📢 ' + ANNOUNCE;
+        });
+      }
+    })
+    .catch(function(e) { console.warn('loadAnnounce error:', e); });
+}
 
 // ===== 気温・湿度自動取得 =====
 function getWeather(pid) {
