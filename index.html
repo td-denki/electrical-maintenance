@@ -2115,7 +2115,7 @@ function openNumpad(inp) {
   val.textContent = inp.value || '-';
   disp.appendChild(lbl); disp.appendChild(val); box.appendChild(disp);
 
-  // グリッド
+  // 数字グリッド（3列）
   var grid = document.createElement('div'); grid.className = 'numpad-grid';
   var btns = [
     ['7','8','9'],
@@ -2133,7 +2133,12 @@ function openNumpad(inp) {
       grid.appendChild(btn);
     });
   });
-  // 最下行：消去・OK
+  box.appendChild(grid);
+
+  // 操作ボタン行（4列）
+  var actRow = document.createElement('div');
+  actRow.style.cssText = 'display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:8px';
+
   var delBtn = document.createElement('button');
   delBtn.className = 'npbtn np-action'; delBtn.textContent = '⌫';
   delBtn.style.fontSize = '20px';
@@ -2147,15 +2152,23 @@ function openNumpad(inp) {
 
   var okBtn = document.createElement('button');
   okBtn.className = 'npbtn np-ok'; okBtn.textContent = '完了';
-  okBtn.ontouchend = function(e) { e.preventDefault(); closeNumpad(); };
-  okBtn.onclick = function(e) { e.preventDefault(); closeNumpad(); };
+  okBtn.style.fontSize = '13px';
+  okBtn.ontouchend = function(e) { e.preventDefault(); closeNumpadEnd(); };
+  okBtn.onclick = function(e) { e.preventDefault(); closeNumpadEnd(); };
 
-  grid.appendChild(delBtn); grid.appendChild(clrBtn); grid.appendChild(okBtn);
-  box.appendChild(grid); ov.appendChild(box);
+  var nextBtn = document.createElement('button');
+  nextBtn.className = 'npbtn np-ok'; nextBtn.textContent = '次へ →';
+  nextBtn.style.cssText = 'background:#0288d1;font-size:13px';
+  nextBtn.ontouchend = function(e) { e.preventDefault(); closeNumpad(); };
+  nextBtn.onclick = function(e) { e.preventDefault(); closeNumpad(); };
+
+  actRow.appendChild(delBtn); actRow.appendChild(clrBtn);
+  actRow.appendChild(okBtn); actRow.appendChild(nextBtn);
+  box.appendChild(actRow); ov.appendChild(box);
 
   // 背景タップで閉じる
-  ov.onclick = function(e) { if (e.target === ov) closeNumpad(); };
-  ov.ontouchstart = function(e) { if (e.target === ov) { e.preventDefault(); closeNumpad(); } };
+  ov.onclick = function(e) { if (e.target === ov) closeNumpadEnd(); };
+  ov.ontouchstart = function(e) { if (e.target === ov) { e.preventDefault(); closeNumpadEnd(); } };
   document.body.appendChild(ov);
 }
 
@@ -2191,6 +2204,20 @@ function numpadClear() {
   markUnsaved();
 }
 
+function closeNumpadEnd() {
+  // 完了：次の欄には移動しない
+  var ov = document.getElementById('numpad-overlay');
+  if (ov) document.body.removeChild(ov);
+  if (numpadTarget) {
+    if (numpadTarget.value === '') numpadTarget.value = '-';
+    numpadTarget.classList.toggle('is-dash', numpadTarget.value === '-');
+    var extra = numpadTarget.getAttribute('data-extra');
+    if (extra) { try { new Function(extra)(); } catch(e) {} }
+    markUnsaved();
+    numpadTarget = null;
+  }
+}
+
 function closeNumpad() {
   var ov = document.getElementById('numpad-overlay');
   if (ov) document.body.removeChild(ov);
@@ -2203,7 +2230,29 @@ function closeNumpad() {
       try { new Function(extra)(); } catch(e) {}
     }
     markUnsaved();
+    // 次の入力欄に自動で移動
+    var currentInp = numpadTarget;
     numpadTarget = null;
+    setTimeout(function() { moveToNextInput(currentInp); }, 80);
+  }
+}
+
+function moveToNextInput(currentInp) {
+  // ページ内の全テンキー対象inputを取得
+  var all = Array.prototype.slice.call(
+    document.querySelectorAll('input.minp:not([class*="af"])[readonly]')
+  );
+  // 自動計算値（afクラス）とdata-extraなしのafは除外、data-extraありは含める
+  all = all.filter(function(el) {
+    if (el.classList.contains('af') && !el.hasAttribute('data-extra')) return false;
+    return true;
+  });
+  var idx = all.indexOf(currentInp);
+  if (idx >= 0 && idx < all.length - 1) {
+    var next = all[idx + 1];
+    // 次の入力欄が画面内に表示されるようスクロール
+    next.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    setTimeout(function() { openNumpad(next); }, 150);
   }
 }
 
