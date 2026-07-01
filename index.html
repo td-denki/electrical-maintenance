@@ -505,7 +505,7 @@ function mInp(id, ro) {
     return '<input class="minp af" type="text" id="' + id + '" placeholder="-" readonly>';
   }
   return '<input class="minp" type="text" id="' + id + '" placeholder="-" readonly ' +
-    'onfocus="openNumpad(this)" onclick="openNumpad(this)">';
+    'onclick="openNumpad(this)" ontouchstart="openNumpad(this)">';
 }
 function oxBtns(key) {
   return '<div class="oxbtns" data-oxk="' + key + '"><button class="oxbtn ok" onclick="setOX(this,\'ok\')">〇</button><button class="oxbtn ng" onclick="setOX(this,\'ng\')">×</button></div>';
@@ -759,8 +759,8 @@ function buildElecPage(pid) {
       '<div class="mi"><label>点検日</label><div class="av">' + dateStr + '</div></div>' +
       '<div class="mi mf"><label>気温 / 湿度</label>' +
         '<div class="wrow">' +
-          '<input class="minp" type="text" id="' + pid + '-temp" placeholder="気温" style="flex:1" readonly onfocus="openNumpad(this)" onclick="openNumpad(this)">' +
-          '<input class="minp" type="text" id="' + pid + '-hum" placeholder="湿度" style="flex:1" readonly onfocus="openNumpad(this)" onclick="openNumpad(this)">' +
+          '<input class="minp" type="text" id="' + pid + '-temp" placeholder="気温" style="flex:1" readonly onclick="openNumpad(this)" ontouchstart="openNumpad(this)">' +
+          '<input class="minp" type="text" id="' + pid + '-hum" placeholder="湿度" style="flex:1" readonly onclick="openNumpad(this)" ontouchstart="openNumpad(this)">' +
           '<button onclick="getWeather(\'' + pid + '\')">📍 自動</button>' +
         '</div>' +
       '</div>' +
@@ -776,7 +776,7 @@ function buildElecPage(pid) {
       '<div class="mrow"><div class="mlabel">有効電力量</div>' + mInp(pid + '-k1-eff') + '<div class="munit">kW</div></div>' +
       '<div class="mrow"><div class="mlabel">無効電力量</div>' + mInp(pid + '-k1-react') + '<div class="munit">kW</div></div>' +
       '<div class="mrow"><div class="mlabel">力率</div>' +
-        '<input class="minp" type="text" id="' + pid + '-k1-pf" placeholder="-" readonly onfocus="openNumpad(this)" onclick="openNumpad(this)" data-extra="syncPf(\'' + pid + '\')"> ' +
+        '<input class="minp" type="text" id="' + pid + '-k1-pf" placeholder="-" readonly onclick="openNumpad(this)" ontouchstart="openNumpad(this)" data-extra="syncPf(\'' + pid + '\')"> ' +
         '<div class="munit">%</div></div>' +
       '<div class="mrow"><div class="mlabel">最大需要電力</div>' + mInp(pid + '-k1-maxd') + '<div class="munit">kW</div></div>' +
       '<div class="mrow"><div class="mlabel">累計最大電力</div>' + mInp(pid + '-k1-cumax') + '<div class="munit">kW</div></div>' +
@@ -804,13 +804,13 @@ function buildElecPage(pid) {
       '<div class="hint-bar">数値または「-」（対象外）を入力</div>' +
       '<div class="mgl">電圧</div>' +
       '<div class="mrow"><div class="mlabel">電圧 R相</div>' +
-        '<input class="minp" type="text" id="' + pid + '-vr" placeholder="-" readonly onfocus="openNumpad(this)" onclick="openNumpad(this)" data-extra="calcPower(\'' + pid + '\')"> ' +
+        '<input class="minp" type="text" id="' + pid + '-vr" placeholder="-" readonly onclick="openNumpad(this)" ontouchstart="openNumpad(this)" data-extra="calcPower(\'' + pid + '\')"> ' +
         '<div class="munit">kV</div></div>' +
       '<div class="mrow"><div class="mlabel">電圧 S相</div>' + mInp(pid + '-vs') + '<div class="munit">kV</div></div>' +
       '<div class="mrow"><div class="mlabel">電圧 T相</div>' + mInp(pid + '-vt') + '<div class="munit">kV</div></div>' +
       '<div class="mgl">電流</div>' +
       '<div class="mrow"><div class="mlabel">電流 R相</div>' +
-        '<input class="minp" type="text" id="' + pid + '-ar" placeholder="-" readonly onfocus="openNumpad(this)" onclick="openNumpad(this)" data-extra="calcPower(\'' + pid + '\')"> ' +
+        '<input class="minp" type="text" id="' + pid + '-ar" placeholder="-" readonly onclick="openNumpad(this)" ontouchstart="openNumpad(this)" data-extra="calcPower(\'' + pid + '\')"> ' +
         '<div class="munit">A</div></div>' +
       '<div class="mrow"><div class="mlabel">電流 S相</div>' + mInp(pid + '-as') + '<div class="munit">A</div></div>' +
       '<div class="mrow"><div class="mlabel">電流 T相</div>' + mInp(pid + '-at') + '<div class="munit">A</div></div>' +
@@ -973,11 +973,11 @@ function buildSolarPage(pid) {
     '<div class="card"><div class="card-hdr" onclick="toggle(this)">電圧・電流（高圧）<span class="tog">▾</span></div><div class="card-body">' +
       '<div class="hint-bar">数値または「-」（対象外）を入力</div>' +
       '<div class="mgl">電圧</div>' +
-      '<div class="mrow"><div class="mlabel">電圧 R相</div><input class="minp" type="text" id="' + pid + '-vr" placeholder="-" readonly onfocus="openNumpad(this)" onclick="openNumpad(this)" data-extra="calcPower(\'' + pid + '\')" ><div class="munit">kV</div></div>' +
+      '<div class="mrow"><div class="mlabel">電圧 R相</div><input class="minp" type="text" id="' + pid + '-vr" placeholder="-" readonly onclick="openNumpad(this)" ontouchstart="openNumpad(this)" data-extra="calcPower(\'' + pid + '\')" ><div class="munit">kV</div></div>' +
       '<div class="mrow"><div class="mlabel">電圧 S相</div>' + mInp(pid + '-vs') + '<div class="munit">kV</div></div>' +
       '<div class="mrow"><div class="mlabel">電圧 T相</div>' + mInp(pid + '-vt') + '<div class="munit">kV</div></div>' +
       '<div class="mgl">電流</div>' +
-      '<div class="mrow"><div class="mlabel">電流 R相</div><input class="minp" type="text" id="' + pid + '-ar" placeholder="-" readonly onfocus="openNumpad(this)" onclick="openNumpad(this)" data-extra="calcPower(\'' + pid + '\')" ><div class="munit">A</div></div>' +
+      '<div class="mrow"><div class="mlabel">電流 R相</div><input class="minp" type="text" id="' + pid + '-ar" placeholder="-" readonly onclick="openNumpad(this)" ontouchstart="openNumpad(this)" data-extra="calcPower(\'' + pid + '\')" ><div class="munit">A</div></div>' +
       '<div class="mrow"><div class="mlabel">電流 S相</div>' + mInp(pid + '-as') + '<div class="munit">A</div></div>' +
       '<div class="mrow"><div class="mlabel">電流 T相</div>' + mInp(pid + '-at') + '<div class="munit">A</div></div>' +
       '<div class="mgl">電力（自動計算）</div>' +
@@ -2092,7 +2092,10 @@ function showHistory() {
 var numpadTarget = null;
 
 function openNumpad(inp) {
-  if (inp.readOnly || inp.classList.contains('af')) return;
+  // af（自動計算値）はスキップ、それ以外は全て開く
+  if (inp.classList.contains('af') && !inp.hasAttribute('data-extra')) return;
+  // タッチイベントのデフォルト動作を防ぐ（スクロール・ズーム防止）
+  if (event && event.type === 'touchstart') { event.preventDefault(); }
   numpadTarget = inp;
   var existing = document.getElementById('numpad-overlay');
   if (existing) document.body.removeChild(existing);
@@ -2125,6 +2128,7 @@ function openNumpad(inp) {
       var btn = document.createElement('button');
       btn.className = 'npbtn' + (b === '-' ? ' np-minus' : '');
       btn.textContent = b;
+      btn.ontouchend = function(e) { e.preventDefault(); numpadInput(b); };
       btn.onclick = function(e) { e.preventDefault(); numpadInput(b); };
       grid.appendChild(btn);
     });
@@ -2133,14 +2137,17 @@ function openNumpad(inp) {
   var delBtn = document.createElement('button');
   delBtn.className = 'npbtn np-action'; delBtn.textContent = '⌫';
   delBtn.style.fontSize = '20px';
+  delBtn.ontouchend = function(e) { e.preventDefault(); numpadDel(); };
   delBtn.onclick = function(e) { e.preventDefault(); numpadDel(); };
 
   var clrBtn = document.createElement('button');
   clrBtn.className = 'npbtn np-action'; clrBtn.textContent = 'C';
+  clrBtn.ontouchend = function(e) { e.preventDefault(); numpadClear(); };
   clrBtn.onclick = function(e) { e.preventDefault(); numpadClear(); };
 
   var okBtn = document.createElement('button');
   okBtn.className = 'npbtn np-ok'; okBtn.textContent = '完了';
+  okBtn.ontouchend = function(e) { e.preventDefault(); closeNumpad(); };
   okBtn.onclick = function(e) { e.preventDefault(); closeNumpad(); };
 
   grid.appendChild(delBtn); grid.appendChild(clrBtn); grid.appendChild(okBtn);
@@ -2148,6 +2155,7 @@ function openNumpad(inp) {
 
   // 背景タップで閉じる
   ov.onclick = function(e) { if (e.target === ov) closeNumpad(); };
+  ov.ontouchstart = function(e) { if (e.target === ov) { e.preventDefault(); closeNumpad(); } };
   document.body.appendChild(ov);
 }
 
