@@ -204,11 +204,10 @@
   .mini-btn:hover{background:var(--blue-soft);}
   .mini-copy{
     border:1px solid var(--line-strong);background:#fff;color:var(--blue);
-    font-size:10.5px;padding:5px 6px;border-radius:6px;cursor:pointer;white-space:nowrap;
-    font-weight:700;width:100%;
+    font-size:10px;padding:6px 5px;border-radius:6px;cursor:pointer;white-space:nowrap;
+    font-weight:700;line-height:1.3;text-align:center;
   }
   .mini-copy:hover{background:var(--blue-soft);}
-  .pn-cell{display:flex;flex-direction:column;align-items:stretch;gap:4px;min-width:96px;}
 
   .summary-strip{display:flex;gap:14px;margin-top:12px;flex-wrap:wrap;}
   .chip{
@@ -1194,12 +1193,8 @@
             <td><input class="cell-input text" data-group="${g.id}" data-id="${row.id}" data-f="location" value="${esc(row.location)}" placeholder="例：PCS1 直流入力"></td>
             <td><input class="cell-input measured" data-group="${g.id}" data-id="${row.id}" data-f="measuredP" value="${esc(row.measuredP)}" placeholder="P側" inputmode="decimal"></td>
             <td id="judge-p-${row.id}">${badge(judgeP)}</td>
-            <td>
-              <div class="pn-cell">
-                <input class="cell-input measured" data-group="${g.id}" data-id="${row.id}" data-f="measuredN" value="${esc(row.measuredN)}" placeholder="N側" inputmode="decimal">
-                <button class="mini-copy" data-copypn="${row.id}" data-group="${g.id}" title="P側の値をN側にコピー">P→N 値をコピー</button>
-              </div>
-            </td>
+            <td><button class="mini-copy" data-copypn="${row.id}" data-group="${g.id}" title="P側の値をN側にコピー">P→N<br>値をコピー</button></td>
+            <td><input class="cell-input measured" data-group="${g.id}" data-id="${row.id}" data-f="measuredN" value="${esc(row.measuredN)}" placeholder="N側" inputmode="decimal"></td>
             <td id="judge-n-${row.id}">${badge(judgeN)}</td>
             <td>
               <select class="cell-input" data-group="${g.id}" data-id="${row.id}" data-f="voltage">
@@ -1227,7 +1222,8 @@
               <th style="min-width:96px;">測定箇所</th>
               <th style="width:84px;">P側 測定値<br>(MΩ)</th>
               <th style="width:52px;">P判定</th>
-              <th style="width:120px;">N側 測定値<br>(MΩ)</th>
+              <th style="width:64px;"></th>
+              <th style="width:84px;">N側 測定値<br>(MΩ)</th>
               <th style="width:52px;">N判定</th>
               <th style="width:76px;">試験電圧</th>
               <th style="width:84px;">判定基準<br>(MΩ)</th>
