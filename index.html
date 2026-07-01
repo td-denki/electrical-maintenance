@@ -1981,13 +1981,23 @@ function renderDriveList(files, targetUser) {
 }
 function downloadDriveFile(fileId, fileName) {
   showToast('CSVを読み込み中...', 'ok');
-  fetch(GAS_URL + '?action=getFile&fileId=' + encodeURIComponent(fileId))
-    .then(function(r) { return r.json(); })
+  // GASのURLにリダイレクト追従オプションを追加
+  fetch(GAS_URL + '?action=getFile&fileId=' + encodeURIComponent(fileId), {
+    method: 'GET',
+    redirect: 'follow'
+  })
+    .then(function(r) {
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      return r.json();
+    })
     .then(function(data) {
       if (!data.ok) { showToast('読み込み失敗: ' + (data.message||''), 'err'); return; }
       showCsvViewer(data.name || fileName, data.content || '');
     })
-    .catch(function() { showToast('読み込み失敗\nGAS URLを確認してください', 'err'); });
+    .catch(function(e) {
+      console.error('downloadDriveFile error:', e);
+      showToast('Drive読込失敗\nGASの再デプロイを確認してください', 'err');
+    });
 }
 
 function showLocalPreviewSummary(h) {
@@ -2022,10 +2032,19 @@ function showLocalPreview(h, data) {
   showCsvViewer(built.fname, built.csv, data);
 }
 
-function showCsvViewer(fileName, csvText) {
+function showCsvViewer(fileName, csvText, dataObj) {
   // BOMを除去
   var text = csvText.replace(/^\uFEFF/, '');
   var lines = text.split('\n');
+  // 写真データ取得
+  var photoArr = [];
+  if (dataObj && dataObj.photos && dataObj.photos.length) {
+    photoArr = dataObj.photos;
+  } else {
+    var dk = fileName ? fileName.slice(0,8) : '';
+    var pr = dk ? store_get('photos-' + dk) : null;
+    if (pr) { try { photoArr = JSON.parse(pr.value).map(function(s){ return { dataUrl: s }; }); } catch(e) {} }
+  }
   // オーバーレイ表示
   var ov = document.createElement('div');
   ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:300;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;padding-top:10px';
@@ -2084,6 +2103,45 @@ function showCsvViewer(fileName, csvText) {
     }
   });
   content.innerHTML = html || '<div style="color:#bbb;text-align:center;padding:20px;font-size:12px">内容がありません</div>';
+  // タブバー（CSV / 写真）
+  var tabBar = document.createElement('div');
+  tabBar.style.cssText = 'display:flex;background:#f7f9fc;border-bottom:1px solid #e8eaf0;flex-shrink:0';
+  var tabCsv = document.createElement('div');
+  tabCsv.style.cssText = 'flex:1;padding:9px;text-align:center;font-size:12px;font-weight:700;cursor:pointer;border-bottom:3px solid #1d3a6e;color:#1d3a6e';
+  tabCsv.textContent = '📋 点検データ';
+  var tabPhoto = document.createElement('div');
+  tabPhoto.style.cssText = 'flex:1;padding:9px;text-align:center;font-size:12px;font-weight:700;cursor:pointer;border-bottom:3px solid transparent;color:#888';
+  tabPhoto.textContent = '📷 写真（' + photoArr.length + '枚）';
+  tabBar.appendChild(tabCsv); tabBar.appendChild(tabPhoto);
+  // 写真ペイン
+  var photoPane = document.createElement('div');
+  photoPane.style.cssText = 'overflow-y:auto;flex:1;padding:12px;display:none';
+  if (photoArr.length) {
+    var pgrid = document.createElement('div');
+    pgrid.style.cssText = 'display:grid;grid-template-columns:repeat(2,1fr);gap:8px';
+    photoArr.forEach(function(p) {
+      var src = typeof p === 'string' ? p : p.dataUrl;
+      var wrap = document.createElement('div');
+      wrap.style.cssText = 'border-radius:8px;overflow:hidden;aspect-ratio:1;cursor:pointer';
+      var pimg = document.createElement('img');
+      pimg.src = src; pimg.style.cssText = 'width:100%;height:100%;object-fit:cover';
+      pimg.onclick = function() { viewPhoto(src); };
+      wrap.appendChild(pimg); pgrid.appendChild(wrap);
+    });
+    photoPane.appendChild(pgrid);
+  } else {
+    photoPane.innerHTML = '<div style="text-align:center;padding:30px;font-size:12px;color:#bbb">この記録には写真がありません</div>';
+  }
+  tabCsv.onclick = function() {
+    content.style.display = 'block'; photoPane.style.display = 'none';
+    tabCsv.style.cssText = 'flex:1;padding:9px;text-align:center;font-size:12px;font-weight:700;cursor:pointer;border-bottom:3px solid #1d3a6e;color:#1d3a6e';
+    tabPhoto.style.cssText = 'flex:1;padding:9px;text-align:center;font-size:12px;font-weight:700;cursor:pointer;border-bottom:3px solid transparent;color:#888';
+  };
+  tabPhoto.onclick = function() {
+    content.style.display = 'none'; photoPane.style.display = 'block';
+    tabPhoto.style.cssText = 'flex:1;padding:9px;text-align:center;font-size:12px;font-weight:700;cursor:pointer;border-bottom:3px solid #1d3a6e;color:#1d3a6e';
+    tabCsv.style.cssText = 'flex:1;padding:9px;text-align:center;font-size:12px;font-weight:700;cursor:pointer;border-bottom:3px solid transparent;color:#888';
+  };
   box.appendChild(hdr); box.appendChild(tabBar); box.appendChild(content); box.appendChild(photoPane);
   ov.appendChild(box);
   ov.onclick = function(e) { if (e.target === ov) document.body.removeChild(ov); };
