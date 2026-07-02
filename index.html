@@ -1310,7 +1310,7 @@ function collectAll() {
       var lbl = row.querySelector('[id$="-label"]'); k1ex.push({ label: lbl ? lbl.value : '', val: applyMult(getV(row.id + '-val'), mult) });
     });
     document.querySelectorAll('#page-' + pid + ' #' + pid + '-k2-extra .mrow').forEach(function(row) {
-      var lbl = row.querySelector('[id$="-label"]'); k2ex.push({ label: lbl ? lbl.value : '', val: getV(row.id + '-val') });
+      var lbl = row.querySelector('[id$="-label"]'); k2ex.push({ label: lbl ? lbl.value : '', val: applyMult(getV(row.id + '-val'), mult) });
     });
     return {
       id: pid, label: pg.label, facility: getV(pid+'-facility'), temp: getV(pid+'-temp'), hum: getV(pid+'-hum'),
@@ -1318,7 +1318,7 @@ function collectAll() {
       vr:getV(pid+'-vr'), vs:getV(pid+'-vs'), vt:getV(pid+'-vt'), ar:getV(pid+'-ar'), as:getV(pid+'-as'), at:getV(pid+'-at'), power:getV(pid+'-power'),
       transformers: trs, kiki: kikis, sokVals: sokVals, sokEx: sokEx,
       kensin1: { mult:mult, all:applyMult(getV(pid+'-k1-all'),mult), eff:applyMult(getV(pid+'-k1-eff'),mult), react:applyMult(getV(pid+'-k1-react'),mult), pf:getV(pid+'-k1-pf'), maxd:applyMult(getV(pid+'-k1-maxd'),mult), cumax:applyMult(getV(pid+'-k1-cumax'),mult), extras:k1ex },
-      kensin2: { all:getV(pid+'-k2-all'), eff:getV(pid+'-k2-eff'), react:getV(pid+'-k2-react'), pf:getV(pid+'-k2-pf'), maxd:getV(pid+'-k2-maxd'), extras:k2ex },
+      kensin2: { all:applyMult(getV(pid+'-k2-all'),mult), eff:applyMult(getV(pid+'-k2-eff'),mult), react:applyMult(getV(pid+'-k2-react'),mult), pf:getV(pid+'-k2-pf'), maxd:applyMult(getV(pid+'-k2-maxd'),mult), extras:k2ex },
       notes: getV(pid+'-notes')
     };
   });
@@ -1376,19 +1376,27 @@ function collectAll() {
 }
 
 // ===== CSV =====
+function csvEscape(str) {
+  // CSV用エスケープ：ダブルクォート・カンマ・改行を含む場合はダブルクォートで囲む
+  var s = String(str || '').replace(/"/g, '""');
+  if (s.indexOf(',') >= 0 || s.indexOf('\n') >= 0 || s.indexOf('"') >= 0) {
+    s = '"' + s + '"';
+  }
+  return s;
+}
 function buildCSV(d) {
   var jl = { ok:'〇', warn:'△', na:'－', '':'未判定' };
   var fname = dateKey + '_' + d.facilityName + '_' + d.inspector + '.csv';
   var csv = '\uFEFF匡電気管理事務所株式会社 電気設備月次点検記録\n';
   csv += '点検日,' + d.date + '\n点検者,' + d.inspector + '\n\n';
   d.elec.forEach(function(pg) {
-    csv += '【' + pg.label + '】事業所: ' + pg.facility + '\n気温,' + pg.temp + ',°C,湿度,' + pg.hum + ',%\n\n';
+    csv += '【' + csvEscape(pg.label) + '】事業所: ' + csvEscape(pg.facility) + '\n気温,' + pg.temp + ',°C,湿度,' + pg.hum + ',%\n\n';
     csv += '点検項目,判定\n';
     ELEC_ITEMS.forEach(function(label, i) { csv += (i+1) + '. ' + label + ',' + (jl[pg.judgments[i] !== undefined ? pg.judgments[i] : ''] || '未判定') + '\n'; });
     csv += '\n電力量計（検針）　乗率,×' + pg.kensin1.mult + '\n';
-    csv += '全日電力量,' + pg.kensin1.all + ',kW\n有効電力量,' + pg.kensin1.eff + ',kW\n無効電力量,' + pg.kensin1.react + ',kW\n力率,' + pg.kensin1.pf + ',kW\n最大需要電力,' + pg.kensin1.maxd + ',kW\n累計最大電力,' + pg.kensin1.cumax + ',kW\n';
+    csv += '全日電力量,' + pg.kensin1.all + ',kW\n有効電力量,' + pg.kensin1.eff + ',kW\n無効電力量,' + pg.kensin1.react + ',kW\n力率,' + pg.kensin1.pf + ',%\n最大需要電力,' + pg.kensin1.maxd + ',kW\n累計最大電力,' + pg.kensin1.cumax + ',kW\n';
     (pg.kensin1.extras || []).forEach(function(ex) { if (ex.label) csv += ex.label + ',' + ex.val + ',kW\n'; });
-    csv += '\n電力量計（本日）\n全日電力量,' + pg.kensin2.all + ',kW\n有効電力量,' + pg.kensin2.eff + ',kW\n無効電力量,' + pg.kensin2.react + ',kW\n力率,' + pg.kensin2.pf + ',kW\n需要電力,' + pg.kensin2.maxd + ',kW\n';
+    csv += '\n電力量計（本日）\n全日電力量,' + pg.kensin2.all + ',kW\n有効電力量,' + pg.kensin2.eff + ',kW\n無効電力量,' + pg.kensin2.react + ',kW\n力率,' + pg.kensin2.pf + ',%\n需要電力,' + pg.kensin2.maxd + ',kW\n';
     (pg.kensin2.extras || []).forEach(function(ex) { if (ex.label) csv += ex.label + ',' + ex.val + ',kW\n'; });
     csv += '\n電圧・電流（高圧）\n電圧 R相,' + pg.vr + ',kV\n電圧 S相,' + pg.vs + ',kV\n電圧 T相,' + pg.vt + ',kV\n電流 R相,' + pg.ar + ',A\n電流 S相,' + pg.as + ',A\n電流 T相,' + pg.at + ',A\n電力,' + pg.power + ',kW\n';
     if (pg.transformers.length) {
@@ -1400,7 +1408,7 @@ function buildCSV(d) {
     csv += '\n各種測定値\n';
     SOK_ITEMS.forEach(function(s) { csv += s.label + ',' + (pg.sokVals[s.label] || '-') + ',' + s.unit + '\n'; });
     (pg.sokEx || []).forEach(function(ex) { if (ex.label) csv += ex.label + ',' + ex.val + ',mA\n'; });
-    csv += '\n記事欄\n' + pg.notes + '\n\n';
+    csv += '\n記事欄\n' + csvEscape(pg.notes) + '\n\n';
   });
   d.gen.forEach(function(pg) {
     csv += '【' + pg.label + '】\n点検項目,判定\n';
@@ -1408,7 +1416,7 @@ function buildCSV(d) {
     pg.generators.forEach(function(g) {
       csv += '\n' + g.label + '\n燃料,' + g.fuel + ',%\n回転数,' + g.rpm + ',rpm/min\n冷却水温度,' + g.coolant + ',°C\n油量,' + g.oil + '\n油圧,' + g.oilp + ',MPa\n電圧,' + g.volt + ',V\n周波数,' + g.freq + ',Hz\n累積運転時間,' + g.hours + ',H\nバッテリー電圧,' + g.batt + ',V\nバッテリー比重,' + g.sg + '\nバッテリー液面,' + g.bliq + '\nバッテリー温度,' + g.btemp + ',℃\n';
     });
-    csv += '\n記事欄\n' + pg.notes + '\n\n';
+    csv += '\n記事欄\n' + csvEscape(pg.notes) + '\n\n';
   });
   d.solar.forEach(function(pg) {
     csv += '【' + pg.label + '】\n点検項目,判定\n';
@@ -1420,13 +1428,13 @@ function buildCSV(d) {
     }
     csv += '\n高圧機器\n種別,温度(℃)\n';
     pg.kiki.forEach(function(k) { csv += k.type + ',' + k.tmp + '\n'; });
-    csv += '\n記事欄\n' + pg.notes + '\n\n';
+    csv += '\n記事欄\n' + csvEscape(pg.notes) + '\n\n';
   });
   d.batt.forEach(function(pg) {
     csv += '【' + pg.label + '】設備名: ' + pg.name + '\n\n';
     csv += 'セル,温度(℃),比重,電圧(V)\n';
     pg.cells.forEach(function(c) { csv += c.label + ',' + c.temp + ',' + c.sg + ',' + c.volt + '\n'; });
-    csv += '\n記事欄\n' + pg.notes + '\n\n';
+    csv += '\n記事欄\n' + csvEscape(pg.notes) + '\n\n';
   });
   return { csv: csv, fname: fname };
 }
