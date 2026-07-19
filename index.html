@@ -229,8 +229,8 @@ var SOLAR_CATS = [{ cat: '引込・受変電設備', items: ['責任分界開閉
 var SOLAR_ITEMS = [];
 SOLAR_CATS.forEach(function(c) { SOLAR_ITEMS = SOLAR_ITEMS.concat(c.items); });
 
-var KIKI_ELEC = ['高圧ケーブル','LBS(主遮断用)','LBS(電灯)','LBS(動力)','VCS','コンデンサ','リアクトル','断路器','その他（自由記載）'];
-var KIKI_SOLAR = ['PCS','直流ケーブル','パネル','高圧ケーブル','LBS(主遮断用)','LBS(電灯)','LBS(動力)','VCS','コンデンサ','リアクトル','断路器','その他（自由記載）'];
+var KIKI_ELEC = ['高圧ケーブル','LBS(主遮断用)','LBS(コンデンサ用)','LBS(電灯)','LBS(動力)','VCS','コンデンサ','リアクトル','断路器','その他（自由記載）'];
+var KIKI_SOLAR = ['PCS','直流ケーブル','パネル','高圧ケーブル','LBS(主遮断用)','LBS(コンデンサ用)','LBS(電灯)','LBS(動力)','VCS','コンデンサ','リアクトル','断路器','その他（自由記載）'];
 var SOK_ITEMS = [{ label: 'SOG電流', unit: 'mA' },{ label: 'A種接地装置(PAS)', unit: 'mA' },{ label: 'A種接地装置', unit: 'mA' },{ label: 'C種接地装置', unit: 'mA' },{ label: 'D種接地装置', unit: 'mA' }];
 var TR_USES = ['電灯','動力','非常電灯','非常動力','その他'];
 
@@ -746,7 +746,7 @@ function buildElecPage(pid) {
   var page = document.createElement('div');
   page.className = 'page'; page.id = 'page-' + pid;
   var facOpts = getFacilities().map(function(f) { return '<option value="' + f + '">' + f + '</option>'; }).join('');
-  var kikiFixed = ['高圧ケーブル','LBS(主遮断用)'].map(function(k) { return fixedKikiHtml(pid, k); }).join('');
+  var kikiFixed = '';
   var sokHtml = SOK_ITEMS.map(function(s) {
     return '<div class="mrow"><div class="mlabel">' + s.label + '</div>' + mInp(pid + '-sok-' + s.label.replace(/[^a-z]/gi,'')) + '<div class="munit">' + s.unit + '</div></div>';
   }).join('');
@@ -968,7 +968,7 @@ function buildSolarPage(pid) {
   var pages = document.getElementById('pages');
   var page = document.createElement('div');
   page.className = 'page'; page.id = 'page-' + pid;
-  var kikiFixed = ['高圧ケーブル','LBS(主遮断用)','LBS(電灯)','LBS(動力)','PCS','直流ケーブル','パネル'].map(function(k) { return fixedKikiHtml(pid, k); }).join('');
+  var kikiFixed = '';
   page.innerHTML = announceHtml() +
     sBarHtml(pid, SOLAR_ITEMS.length) +
     '<div class="card"><div class="card-hdr" onclick="toggle(this)">点検項目（全' + SOLAR_ITEMS.length + '項目）<span class="tog">▾</span></div>' +
