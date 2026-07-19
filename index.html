@@ -6,7 +6,8 @@
 <title>匡電気管理事務所株式会社 電気設備月次点検入力アプリ</title>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
-body{font-family:-apple-system,sans-serif;background:#f0f2f5;color:#111;font-size:14px}
+html{overscroll-behavior:none}
+body{font-family:-apple-system,sans-serif;background:#f0f2f5;color:#111;font-size:14px;overscroll-behavior:none;overflow-x:hidden}
 .app{max-width:480px;margin:0 auto;padding-bottom:80px}
 .hdr{background:#1d3a6e;padding:10px 14px;position:sticky;top:0;z-index:40;color:#fff}
 .hdr h1{font-size:13px;font-weight:700;line-height:1.4}
@@ -2539,13 +2540,8 @@ function showHistory() {
 // ===== カスタムテンキー =====
 var numpadTarget = null;
 
-// ===== スクロール判定（スクロール中はテンキーを開かない） =====
+// ===== スクロール判定（スワイプ防止と兼用） =====
 var _touchStartY = 0, _touchStartX = 0, _isScrolling = false;
-document.addEventListener('touchstart', function(e) {
-  _touchStartY = e.touches[0].clientY;
-  _touchStartX = e.touches[0].clientX;
-  _isScrolling = false;
-}, { passive: true });
 document.addEventListener('touchmove', function(e) {
   var dy = Math.abs(e.touches[0].clientY - _touchStartY);
   var dx = Math.abs(e.touches[0].clientX - _touchStartX);
@@ -2729,19 +2725,39 @@ function showAutoBadge() {
 }
 
 // ===== ブラウザの戻る・進むを無効化 =====
+// ===== ブラウザの戻る・進む・スワイプバックを無効化 =====
 history.pushState(null, '', location.href);
-window.addEventListener('popstate', function() {
+window.addEventListener('popstate', function(e) {
   history.pushState(null, '', location.href);
 });
+// iOS スワイプバック防止（touchmoveで横スワイプをキャンセル）
+document.addEventListener('touchstart', function(e) {
+  _touchStartY = e.touches[0].clientY;
+  _touchStartX = e.touches[0].clientX;
+  _isScrolling = false;
+}, { passive: true });
+// エッジ（左端15px以内）からの横スワイプを防止
+document.addEventListener('touchmove', function(e) {
+  var dy = Math.abs(e.touches[0].clientY - _touchStartY);
+  var dx = Math.abs(e.touches[0].clientX - _touchStartX);
+  if (dy > 8 || dx > 8) _isScrolling = true;
+  // 左端15px以内から横スワイプ → ブラウザの「戻る」ジェスチャーを防ぐ
+  if (_touchStartX < 20 && dx > dy) {
+    e.preventDefault();
+  }
+}, { passive: false });
 
-// ===== ページロード時にセッション復元・リフレッシュ対応 =====
-// リフレッシュ前に自動保存
+// ===== ページ更新・離脱時の警告 =====
 window.addEventListener('beforeunload', function(e) {
   if (currentUser) {
+    // ログイン中は常に警告（データが消えるのを防ぐ）
     if (unsaved) { try { autoSave(); } catch(err) {} }
+    var msg = unsaved
+      ? '未保存のデータがあります。ページを更新するとデータが消える可能性があります。'
+      : 'ページを更新すると入力内容が消えます。よろしいですか？';
     e.preventDefault();
-    e.returnValue = '入力内容が保存されていない可能性があります。ページを更新しますか？';
-    return e.returnValue;
+    e.returnValue = msg;
+    return msg;
   }
 });
 
