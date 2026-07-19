@@ -6,8 +6,9 @@
 <title>匡電気管理事務所株式会社 電気設備月次点検入力アプリ</title>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
-html{overscroll-behavior:none}
-body{font-family:-apple-system,sans-serif;background:#f0f2f5;color:#111;font-size:14px;overscroll-behavior:none;overflow-x:hidden}
+html{overscroll-behavior:none;overflow:hidden}
+body{font-family:-apple-system,sans-serif;background:#f0f2f5;color:#111;font-size:14px;overscroll-behavior:none;overflow-x:hidden;touch-action:pan-y;position:fixed;width:100%;height:100%}
+.app{overflow-y:auto;height:100vh;overscroll-behavior:none}
 .app{max-width:480px;margin:0 auto;padding-bottom:80px}
 .hdr{background:#1d3a6e;padding:10px 14px;position:sticky;top:0;z-index:40;color:#fff}
 .hdr h1{font-size:13px;font-weight:700;line-height:1.4}
@@ -307,7 +308,7 @@ function loginSuccess(user) {
     addToolPage();
     addElecPage(); // 最後に追加→電気室タブが最初に表示
   });
-  setInterval(function() { if (unsaved) autoSave(); }, 600000);
+  setInterval(function() { if (unsaved) autoSave(); }, 120000);
   handleOAuth();
 }
 function doLogout() {
@@ -651,12 +652,20 @@ function toggleKikiOther(sel) {
 }
 
 // ===== 固定機器HTML =====
-function fixedKikiHtml(pid, label) {
+function fixedKikiHtml(pid, label, types) {
+  // デフォルトのtypesが渡されない場合はKIKI_ELECを使用
+  var opts = (types || KIKI_ELEC);
   var cidSuffix = '';
   for (var ci = 0; ci < label.length; ci++) { var cc = label.charCodeAt(ci); if ((cc >= 48 && cc <= 57) || (cc >= 65 && cc <= 90) || (cc >= 97 && cc <= 122)) cidSuffix += label[ci]; }
   var cid = pid + '-fkk-' + cidSuffix;
+  var typeOpts = opts.map(function(t) {
+    return '<option' + (t === label ? ' selected' : '') + '>' + t + '</option>';
+  }).join('');
   return '<div class="sub-card" id="' + cid + '">' +
-    '<div class="sub-hdr"><span class="sub-lbl">' + label + '</span></div>' +
+    '<div class="sub-hdr">' +
+      '<select class="sub-lbl" style="background:transparent;border:none;outline:none;font-weight:700;color:#1d3a6e;font-size:12px;flex:1" id="' + cid + '-type" onchange="toggleKikiOther(\'' + cid + '\');markUnsaved()">' + typeOpts + '</select>' +
+    '</div>' +
+    '<div id="' + cid + '-other" style="display:none" class="mrow"><div class="mlabel">名称</div><input class="minp" type="text" id="' + cid + '-oname" placeholder="機器名" style="width:auto;flex:1" inputmode="latin" oninput="markUnsaved()"></div>' +
     '<div class="mrow"><div class="mlabel">温度<div class="mhint">対象外は「-」</div></div>' + mInp(cid + '-tmp') + '<div class="munit">℃</div></div>' +
     '</div>';
 }
@@ -980,7 +989,7 @@ function buildSolarPage(pid) {
   var pages = document.getElementById('pages');
   var page = document.createElement('div');
   page.className = 'page'; page.id = 'page-' + pid;
-  var kikiFixed = ['高圧ケーブル','LBS(主遮断用)','PCS','直流ケーブル','パネル'].map(function(k) { return fixedKikiHtml(pid, k); }).join('');
+  var kikiFixed = ['高圧ケーブル','LBS(主遮断用)','PCS','直流ケーブル','パネル'].map(function(k) { return fixedKikiHtml(pid, k, KIKI_SOLAR); }).join('');
   page.innerHTML = announceHtml() +
     sBarHtml(pid, SOLAR_ITEMS.length) +
     '<div class="card"><div class="card-hdr" onclick="toggle(this)">点検項目（全' + SOLAR_ITEMS.length + '項目）<span class="tog">▾</span></div>' +
@@ -1304,12 +1313,9 @@ function collectAll() {
     });
     var kikis = [];
     document.querySelectorAll('#page-' + pid + ' [id^="' + pid + '-fkk-"]').forEach(function(card) {
-      var lbl = (card.querySelector('.sub-lbl') || {}).textContent || '';
-      var tid = card.id.replace(/[()]/g,'') + '-tmp';
-      kikis.push({ type: lbl, tmp: getV(tid) });
-    });
-    document.querySelectorAll('#page-' + pid + ' [id^="' + pid + '-fkk-"]').forEach(function(card) {
-      var lbl = (card.querySelector('.sub-lbl')||{}).textContent||'';
+      var typeEl = card.querySelector('select');
+      var lbl = typeEl ? typeEl.value : ((card.querySelector('.sub-lbl')||{}).textContent||'');
+      if (lbl === 'その他（自由記載）') { var nm = card.querySelector('[id$="-oname"]'); lbl = nm ? (nm.value||'その他') : 'その他'; }
       var cleanId = '';
       for (var xi = 0; xi < card.id.length; xi++) { if (card.id[xi] !== '(' && card.id[xi] !== ')') cleanId += card.id[xi]; }
       kikis.push({ type:lbl, tmp:getV(cleanId+'-tmp') });
@@ -1362,13 +1368,17 @@ function collectAll() {
     });
     var kikis = [];
     document.querySelectorAll('#page-' + pid + ' [id^="' + pid + '-fkk-"]').forEach(function(card) {
-      var lbl = (card.querySelector('.sub-lbl')||{}).textContent||'';
+      var typeEl = card.querySelector('select');
+      var lbl = typeEl ? typeEl.value : ((card.querySelector('.sub-lbl')||{}).textContent||'');
+      if (lbl === 'その他（自由記載）') { var nm = card.querySelector('[id$="-oname"]'); lbl = nm ? (nm.value||'その他') : 'その他'; }
       var cleanId = '';
       for (var xi = 0; xi < card.id.length; xi++) { if (card.id[xi] !== '(' && card.id[xi] !== ')') cleanId += card.id[xi]; }
       kikis.push({ type:lbl, tmp:getV(cleanId+'-tmp') });
     });
     document.querySelectorAll('#page-' + pid + ' #' + pid + '-kk-list .sub-card').forEach(function(card) {
-      var cid=card.id; var t=(card.querySelector('select')||{}).value||''; kikis.push({ type:t, tmp:getV(cid+'-tmp') });
+      var cid=card.id; var typeEl2=card.querySelector('select'); var t=typeEl2?typeEl2.value:'';
+      if (t === 'その他（自由記載）') { var nm2 = document.getElementById(cid + '-oname'); t = nm2 ? (nm2.value||'その他') : 'その他'; }
+      kikis.push({ type:t, tmp:getV(cid+'-tmp') });
     });
     return { id:pid, label:pg.label, judgments:Object.assign({},pg.jState), vr:getV(pid+'-vr'), vs:getV(pid+'-vs'), vt:getV(pid+'-vt'), ar:getV(pid+'-ar'), as:getV(pid+'-as'), at:getV(pid+'-at'), power:getV(pid+'-power'), transformers:trs, kiki:kikis, notes:getV(pid+'-notes') };
   });
@@ -2542,11 +2552,6 @@ var numpadTarget = null;
 
 // ===== スクロール判定（スワイプ防止と兼用） =====
 var _touchStartY = 0, _touchStartX = 0, _isScrolling = false;
-document.addEventListener('touchmove', function(e) {
-  var dy = Math.abs(e.touches[0].clientY - _touchStartY);
-  var dx = Math.abs(e.touches[0].clientX - _touchStartX);
-  if (dy > 8 || dx > 8) _isScrolling = true;
-}, { passive: true });
 
 function openNumpad(inp) {
   // af（自動計算値）はスキップ、それ以外は全て開く
@@ -2725,24 +2730,50 @@ function showAutoBadge() {
 }
 
 // ===== ブラウザの戻る・進むを無効化 =====
+// ===== アプリ切替・ホーム画面移動時に自動保存 =====
+document.addEventListener('visibilitychange', function() {
+  // 画面が非表示になった瞬間（アプリ切替・ホームボタン）に保存
+  if (document.visibilityState === 'hidden' && currentUser) {
+    try { autoSave(); } catch(e) {}
+  }
+  // 画面が再表示されたとき（アプリに戻ってきた）
+  if (document.visibilityState === 'visible' && currentUser) {
+    showToast('データは自動保存されています', 'ok');
+  }
+});
+// iOS Safari 追加対応
+window.addEventListener('pagehide', function() {
+  if (currentUser) { try { autoSave(); } catch(e) {} }
+});
+
 // ===== ブラウザの戻る・進む・スワイプバックを無効化 =====
 history.pushState(null, '', location.href);
 window.addEventListener('popstate', function(e) {
-  history.pushState(null, '', location.href);
+  // Androidの物理戻るボタン対応
+  if (currentUser) {
+    if (confirm('アプリを終了しますか？\n（「キャンセル」でアプリに戻ります）')) {
+      // 終了前に保存
+      if (unsaved) { try { autoSave(); } catch(err) {} }
+      history.go(-1);
+    } else {
+      history.pushState(null, '', location.href);
+    }
+  } else {
+    history.pushState(null, '', location.href);
+  }
 });
-// iOS スワイプバック防止（touchmoveで横スワイプをキャンセル）
+// 横スワイプを全面ブロック（アプリ切替・戻る・進む防止）
 document.addEventListener('touchstart', function(e) {
   _touchStartY = e.touches[0].clientY;
   _touchStartX = e.touches[0].clientX;
   _isScrolling = false;
 }, { passive: true });
-// エッジ（左端15px以内）からの横スワイプを防止
 document.addEventListener('touchmove', function(e) {
   var dy = Math.abs(e.touches[0].clientY - _touchStartY);
   var dx = Math.abs(e.touches[0].clientX - _touchStartX);
   if (dy > 8 || dx > 8) _isScrolling = true;
-  // 左端15px以内から横スワイプ → ブラウザの「戻る」ジェスチャーを防ぐ
-  if (_touchStartX < 20 && dx > dy) {
+  // 横スワイプはすべてキャンセル（縦スクロールのみ許可）
+  if (dx > dy && dx > 5) {
     e.preventDefault();
   }
 }, { passive: false });
