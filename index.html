@@ -383,24 +383,35 @@ function loadUserFacilities(callback) {
     if (callback) callback();
     return;
   }
-  // タイムアウト付きfetch（3秒で諦めて直接入力モードに）
+  // タイムアウト付きfetch（8秒で諦めて直接入力モードに）
   var done = false;
   var timer = setTimeout(function() {
-    if (!done) { done = true; userFacilities = []; if (callback) callback(); }
-  }, 3000);
+    if (!done) {
+      done = true;
+      userFacilities = [];
+      console.warn('getUserInfo timeout');
+      if (callback) callback();
+    }
+  }, 8000);
 
   fetch(GAS_URL + '?action=getUserInfo&user=' + encodeURIComponent(currentUser))
     .then(function(r) { return r.json(); })
     .then(function(j) {
       if (done) return;
       clearTimeout(timer); done = true;
-      userFacilities = (j.ok && j.facilities && j.facilities.length) ? j.facilities : [];
+      if (j.ok && j.facilities && j.facilities.length) {
+        userFacilities = j.facilities;
+      } else {
+        userFacilities = [];
+        console.warn('getUserInfo: no facilities', j);
+      }
       if (callback) callback();
     })
-    .catch(function() {
+    .catch(function(e) {
       if (done) return;
       clearTimeout(timer); done = true;
       userFacilities = [];
+      console.warn('getUserInfo fetch error:', e);
       if (callback) callback();
     });
 }
@@ -509,7 +520,7 @@ function mInp(id, ro) {
     return '<input class="minp af" type="text" id="' + id + '" placeholder="-" readonly>';
   }
   return '<input class="minp" type="text" id="' + id + '" placeholder="-" readonly ' +
-    'onclick="openNumpad(this)" ontouchstart="openNumpad(this)">';
+    'onclick="openNumpad(this)" ontouchend="if(!_isScrolling)openNumpad(this)">';
 }
 function oxBtns(key) {
   return '<div class="oxbtns" data-oxk="' + key + '"><button class="oxbtn ok" onclick="setOX(this,\'ok\')">〇</button><button class="oxbtn ng" onclick="setOX(this,\'ng\')">×</button></div>';
@@ -763,8 +774,8 @@ function buildElecPage(pid) {
       '<div class="mi"><label>点検日</label><div class="av">' + dateStr + '</div></div>' +
       '<div class="mi mf"><label>気温 / 湿度</label>' +
         '<div class="wrow">' +
-          '<input class="minp" type="text" id="' + pid + '-temp" placeholder="気温" style="flex:1" readonly onclick="openNumpad(this)" ontouchstart="openNumpad(this)">' +
-          '<input class="minp" type="text" id="' + pid + '-hum" placeholder="湿度" style="flex:1" readonly onclick="openNumpad(this)" ontouchstart="openNumpad(this)">' +
+          '<input class="minp" type="text" id="' + pid + '-temp" placeholder="気温" style="flex:1" readonly onclick="openNumpad(this)" ontouchend="if(!_isScrolling)openNumpad(this)">' +
+          '<input class="minp" type="text" id="' + pid + '-hum" placeholder="湿度" style="flex:1" readonly onclick="openNumpad(this)" ontouchend="if(!_isScrolling)openNumpad(this)">' +
           '<button onclick="getWeather(\'' + pid + '\')">📍 自動</button>' +
         '</div>' +
       '</div>' +
@@ -780,7 +791,7 @@ function buildElecPage(pid) {
       '<div class="mrow"><div class="mlabel">有効電力量</div>' + mInp(pid + '-k1-eff') + '<div class="munit">kW</div></div>' +
       '<div class="mrow"><div class="mlabel">無効電力量</div>' + mInp(pid + '-k1-react') + '<div class="munit">kW</div></div>' +
       '<div class="mrow"><div class="mlabel">力率</div>' +
-        '<input class="minp" type="text" id="' + pid + '-k1-pf" placeholder="-" readonly onclick="openNumpad(this)" ontouchstart="openNumpad(this)" data-extra="syncPf(\'' + pid + '\')"> ' +
+        '<input class="minp" type="text" id="' + pid + '-k1-pf" placeholder="-" readonly onclick="openNumpad(this)" ontouchend="if(!_isScrolling)openNumpad(this)" data-extra="syncPf(\'' + pid + '\')"> ' +
         '<div class="munit">%</div></div>' +
       '<div class="mrow"><div class="mlabel">最大需要電力</div>' + mInp(pid + '-k1-maxd') + '<div class="munit">kW</div></div>' +
       '<div class="mrow"><div class="mlabel">累計最大電力</div>' + mInp(pid + '-k1-cumax') + '<div class="munit">kW</div></div>' +
@@ -808,13 +819,13 @@ function buildElecPage(pid) {
       '<div class="hint-bar">数値または「-」（対象外）を入力</div>' +
       '<div class="mgl">電圧</div>' +
       '<div class="mrow"><div class="mlabel">電圧 R相</div>' +
-        '<input class="minp" type="text" id="' + pid + '-vr" placeholder="-" readonly onclick="openNumpad(this)" ontouchstart="openNumpad(this)" data-extra="calcPower(\'' + pid + '\')"> ' +
+        '<input class="minp" type="text" id="' + pid + '-vr" placeholder="-" readonly onclick="openNumpad(this)" ontouchend="if(!_isScrolling)openNumpad(this)" data-extra="calcPower(\'' + pid + '\')"> ' +
         '<div class="munit">kV</div></div>' +
       '<div class="mrow"><div class="mlabel">電圧 S相</div>' + mInp(pid + '-vs') + '<div class="munit">kV</div></div>' +
       '<div class="mrow"><div class="mlabel">電圧 T相</div>' + mInp(pid + '-vt') + '<div class="munit">kV</div></div>' +
       '<div class="mgl">電流</div>' +
       '<div class="mrow"><div class="mlabel">電流 R相</div>' +
-        '<input class="minp" type="text" id="' + pid + '-ar" placeholder="-" readonly onclick="openNumpad(this)" ontouchstart="openNumpad(this)" data-extra="calcPower(\'' + pid + '\')"> ' +
+        '<input class="minp" type="text" id="' + pid + '-ar" placeholder="-" readonly onclick="openNumpad(this)" ontouchend="if(!_isScrolling)openNumpad(this)" data-extra="calcPower(\'' + pid + '\')"> ' +
         '<div class="munit">A</div></div>' +
       '<div class="mrow"><div class="mlabel">電流 S相</div>' + mInp(pid + '-as') + '<div class="munit">A</div></div>' +
       '<div class="mrow"><div class="mlabel">電流 T相</div>' + mInp(pid + '-at') + '<div class="munit">A</div></div>' +
@@ -977,11 +988,11 @@ function buildSolarPage(pid) {
     '<div class="card"><div class="card-hdr" onclick="toggle(this)">電圧・電流（高圧）<span class="tog">▾</span></div><div class="card-body">' +
       '<div class="hint-bar">数値または「-」（対象外）を入力</div>' +
       '<div class="mgl">電圧</div>' +
-      '<div class="mrow"><div class="mlabel">電圧 R相</div><input class="minp" type="text" id="' + pid + '-vr" placeholder="-" readonly onclick="openNumpad(this)" ontouchstart="openNumpad(this)" data-extra="calcPower(\'' + pid + '\')" ><div class="munit">kV</div></div>' +
+      '<div class="mrow"><div class="mlabel">電圧 R相</div><input class="minp" type="text" id="' + pid + '-vr" placeholder="-" readonly onclick="openNumpad(this)" ontouchend="if(!_isScrolling)openNumpad(this)" data-extra="calcPower(\'' + pid + '\')" ><div class="munit">kV</div></div>' +
       '<div class="mrow"><div class="mlabel">電圧 S相</div>' + mInp(pid + '-vs') + '<div class="munit">kV</div></div>' +
       '<div class="mrow"><div class="mlabel">電圧 T相</div>' + mInp(pid + '-vt') + '<div class="munit">kV</div></div>' +
       '<div class="mgl">電流</div>' +
-      '<div class="mrow"><div class="mlabel">電流 R相</div><input class="minp" type="text" id="' + pid + '-ar" placeholder="-" readonly onclick="openNumpad(this)" ontouchstart="openNumpad(this)" data-extra="calcPower(\'' + pid + '\')" ><div class="munit">A</div></div>' +
+      '<div class="mrow"><div class="mlabel">電流 R相</div><input class="minp" type="text" id="' + pid + '-ar" placeholder="-" readonly onclick="openNumpad(this)" ontouchend="if(!_isScrolling)openNumpad(this)" data-extra="calcPower(\'' + pid + '\')" ><div class="munit">A</div></div>' +
       '<div class="mrow"><div class="mlabel">電流 S相</div>' + mInp(pid + '-as') + '<div class="munit">A</div></div>' +
       '<div class="mrow"><div class="mlabel">電流 T相</div>' + mInp(pid + '-at') + '<div class="munit">A</div></div>' +
       '<div class="mgl">電力（自動計算）</div>' +
@@ -2528,11 +2539,24 @@ function showHistory() {
 // ===== カスタムテンキー =====
 var numpadTarget = null;
 
+// ===== スクロール判定（スクロール中はテンキーを開かない） =====
+var _touchStartY = 0, _touchStartX = 0, _isScrolling = false;
+document.addEventListener('touchstart', function(e) {
+  _touchStartY = e.touches[0].clientY;
+  _touchStartX = e.touches[0].clientX;
+  _isScrolling = false;
+}, { passive: true });
+document.addEventListener('touchmove', function(e) {
+  var dy = Math.abs(e.touches[0].clientY - _touchStartY);
+  var dx = Math.abs(e.touches[0].clientX - _touchStartX);
+  if (dy > 8 || dx > 8) _isScrolling = true;
+}, { passive: true });
+
 function openNumpad(inp) {
   // af（自動計算値）はスキップ、それ以外は全て開く
   if (inp.classList.contains('af') && !inp.hasAttribute('data-extra')) return;
-  // タッチイベントのデフォルト動作を防ぐ（スクロール・ズーム防止）
-  if (event && event.type === 'touchstart') { event.preventDefault(); }
+  // スクロール中はテンキーを開かない
+  if (_isScrolling) return;
   numpadTarget = inp;
   var existing = document.getElementById('numpad-overlay');
   if (existing) document.body.removeChild(existing);
