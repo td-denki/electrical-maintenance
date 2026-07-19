@@ -746,7 +746,7 @@ function buildElecPage(pid) {
   var page = document.createElement('div');
   page.className = 'page'; page.id = 'page-' + pid;
   var facOpts = getFacilities().map(function(f) { return '<option value="' + f + '">' + f + '</option>'; }).join('');
-  var kikiFixed = '';
+  var kikiFixed = ['高圧ケーブル','LBS(主遮断用)'].map(function(k) { return fixedKikiHtml(pid, k); }).join('');
   var sokHtml = SOK_ITEMS.map(function(s) {
     return '<div class="mrow"><div class="mlabel">' + s.label + '</div>' + mInp(pid + '-sok-' + s.label.replace(/[^a-z]/gi,'')) + '<div class="munit">' + s.unit + '</div></div>';
   }).join('');
@@ -968,7 +968,7 @@ function buildSolarPage(pid) {
   var pages = document.getElementById('pages');
   var page = document.createElement('div');
   page.className = 'page'; page.id = 'page-' + pid;
-  var kikiFixed = '';
+  var kikiFixed = ['高圧ケーブル','LBS(主遮断用)','PCS','直流ケーブル','パネル'].map(function(k) { return fixedKikiHtml(pid, k); }).join('');
   page.innerHTML = announceHtml() +
     sBarHtml(pid, SOLAR_ITEMS.length) +
     '<div class="card"><div class="card-hdr" onclick="toggle(this)">点検項目（全' + SOLAR_ITEMS.length + '項目）<span class="tog">▾</span></div>' +
@@ -1296,6 +1296,12 @@ function collectAll() {
       var tid = card.id.replace(/[()]/g,'') + '-tmp';
       kikis.push({ type: lbl, tmp: getV(tid) });
     });
+    document.querySelectorAll('#page-' + pid + ' [id^="' + pid + '-fkk-"]').forEach(function(card) {
+      var lbl = (card.querySelector('.sub-lbl')||{}).textContent||'';
+      var cleanId = '';
+      for (var xi = 0; xi < card.id.length; xi++) { if (card.id[xi] !== '(' && card.id[xi] !== ')') cleanId += card.id[xi]; }
+      kikis.push({ type:lbl, tmp:getV(cleanId+'-tmp') });
+    });
     document.querySelectorAll('#page-' + pid + ' #' + pid + '-kk-list .sub-card').forEach(function(card) {
       var cid = card.id;
       var typeEl = card.querySelector('select');
@@ -1508,26 +1514,52 @@ function saveAll(d) {
     } catch(e) { console.warn('photo local save error:', e); }
   }
 
-  // Drive保存（GAS経由）
+  // Drive保存（GAS経由・デフォルト）
   showToast('Driveに保存中...', 'ok');
   saveToDrive(csv, fname).then(function(ok) {
-    // CSVダウンロード
-    var blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
-    var url = URL.createObjectURL(blob);
-    var a = document.createElement('a'); a.href = url; a.download = fname; a.click(); URL.revokeObjectURL(url);
-    // 写真をDriveに保存
-    savePhotosToDrive(d.photos, dateKey);
-    if (GAS_URL.indexOf('YOUR_SCRIPT_ID') < 0) {
-      showToast(ok ? 'Drive保存&CSV完了！' : 'Drive保存失敗 CSVはダウンロード済み', ok ? 'ok' : 'warn');
+    if (ok) {
+      // Drive保存成功：CSVもダウンロード＋写真保存
+      var blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
+      var url = URL.createObjectURL(blob);
+      var a = document.createElement('a'); a.href = url; a.download = fname; a.click(); URL.revokeObjectURL(url);
+      savePhotosToDrive(d.photos, dateKey);
+      showToast('Drive保存&CSV完了！', 'ok');
     } else {
-      showToast('CSV保存完了', 'ok');
+      // Drive保存失敗：端末保存を確認
+      if (confirm('クラウド（Drive）への保存に失敗しました。\n端末（ローカル）に保存しますか？')) {
+        saveToLocal(csv, fname, d);
+        showToast('端末に保存しました（後でDriveに再送してください）', 'warn');
+      } else {
+        showToast('保存をキャンセルしました', 'warn');
+      }
     }
   }).catch(function(e) {
-    showToast('Drive保存エラー CSVをダウンロードします', 'warn');
-    var blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
-    var url = URL.createObjectURL(blob);
-    var a = document.createElement('a'); a.href = url; a.download = fname; a.click(); URL.revokeObjectURL(url);
+    console.error('saveToDrive catch:', e);
+    if (confirm('クラウドへの接続に失敗しました。\n端末（ローカル）に保存しますか？')) {
+      saveToLocal(csv, fname, d);
+      showToast('端末に保存しました', 'warn');
+    } else {
+      showToast('保存をキャンセルしました', 'warn');
+    }
   });
+}
+
+function saveToLocal(csv, fname, d) {
+  // 端末ダウンロード
+  var blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
+  var url = URL.createObjectURL(blob);
+  var a = document.createElement('a'); a.href = url; a.download = fname; a.click(); URL.revokeObjectURL(url);
+  // 写真も端末ダウンロード
+  if (d && d.photos && d.photos.length) {
+    d.photos.forEach(function(p, i) {
+      var src = typeof p === 'string' ? p : p.dataUrl;
+      var pname = dateKey + '_photo' + (i+1) + '_' + currentUser + '.jpg';
+      var pblob = dataUrlToBlob(src);
+      var purl = URL.createObjectURL(pblob);
+      var pa = document.createElement('a'); pa.href = purl; pa.download = pname; pa.click();
+      URL.revokeObjectURL(purl);
+    });
+  }
 }
 
 // dataURL → Blob変換
@@ -2164,66 +2196,175 @@ function escHtml(str) {
   return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 }
 function showRestoreModal() {
-  // 端末の保存済みデータ一覧を表示して選択復元できるモーダル
-  var hist = [];
-  var r = store_get('tenken-history');
-  if (r) { try { hist = JSON.parse(r.value); } catch(e) {} }
-
+  // オーバーレイを生成
   var ov = document.createElement('div');
   ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:300;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;padding-top:10px';
   var box = document.createElement('div');
   box.style.cssText = 'background:#fff;border-radius:12px;width:96vw;max-width:480px;max-height:90vh;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 8px 32px rgba(0,0,0,.3)';
-
   var hdr = document.createElement('div');
   hdr.style.cssText = 'padding:12px 16px;background:#1d3a6e;color:#fff;display:flex;align-items:center;flex-shrink:0';
   var htitle = document.createElement('span');
   htitle.style.cssText = 'flex:1;font-size:13px;font-weight:700';
-  htitle.textContent = '📂 保存データを復元';
+  htitle.textContent = '📂 クラウドから復元';
   var hclose = document.createElement('button');
   hclose.textContent = '✕ 閉じる';
   hclose.style.cssText = 'height:28px;padding:0 10px;border-radius:6px;border:none;background:rgba(255,255,255,.2);color:#fff;font-size:11px;cursor:pointer';
   hclose.onclick = function() { document.body.removeChild(ov); };
   hdr.appendChild(htitle); hdr.appendChild(hclose);
-
   var note = document.createElement('div');
   note.style.cssText = 'padding:8px 14px;background:#fff8e1;font-size:11px;color:#7a5800;border-bottom:1px solid #f0c040;flex-shrink:0';
-  note.textContent = '⚠️ 復元すると現在の入力内容は上書きされます。タップして選択してください。';
-
+  note.textContent = '⚠️ 復元すると現在の入力内容は上書きされます。';
   var list = document.createElement('div');
   list.style.cssText = 'overflow-y:auto;flex:1';
-
-  if (!hist.length) {
-    list.innerHTML = '<div style="text-align:center;padding:30px;font-size:12px;color:#bbb">復元できるデータがありません</div>';
-  } else {
-    hist.forEach(function(h) {
-      var item = document.createElement('div');
-      item.style.cssText = 'padding:12px 16px;border-bottom:1px solid #f0f0f0;cursor:pointer';
-      item.innerHTML = '<div style="font-size:13px;font-weight:700;color:#1d3a6e">📋 ' + escHtml(h.facility||'未設定') + '</div>' +
-        '<div style="font-size:11px;color:#888;margin-top:2px">' + escHtml(h.date||'') + ' ／ ' + escHtml(h.inspector||'') + ' ／ ' + (h.savedAt||'').slice(0,16).replace('T',' ') + '</div>';
-      item.onmouseover = function() { item.style.background = '#f0f4ff'; };
-      item.onmouseout  = function() { item.style.background = ''; };
-      var doRestore = function(hh) {
-        return function() {
-          var stored = store_get(hh.key);
-          if (!stored) { showToast('データが見つかりません', 'err'); return; }
-          try {
-            var data = JSON.parse(stored.value);
-            if (!confirm('「' + (hh.facility||'この記録') + '」 ' + hh.date + ' のデータを復元しますか？\n現在の入力内容は上書きされます。')) return;
-            document.body.removeChild(ov);
-            restoreData(data);
-          } catch(e) { showToast('復元に失敗しました', 'err'); }
-        };
-      };
-      item.onclick = doRestore(h);
-      item.ontouchstart = doRestore(h);
-      list.appendChild(item);
-    });
-  }
-
+  list.innerHTML = '<div style="text-align:center;padding:20px;font-size:12px;color:#aaa">Driveから読み込み中...</div>';
   box.appendChild(hdr); box.appendChild(note); box.appendChild(list);
   ov.appendChild(box);
   ov.onclick = function(e) { if (e.target === ov) document.body.removeChild(ov); };
   document.body.appendChild(ov);
+
+  // GASからファイル一覧取得
+  if (GAS_URL.indexOf('YOUR_SCRIPT_ID') >= 0) {
+    list.innerHTML = '<div style="text-align:center;padding:20px;font-size:12px;color:#c62828">GAS URLが未設定です</div>';
+    return;
+  }
+  fetch(GAS_URL + '?action=getHistory&user=' + encodeURIComponent(currentUser) + '&targetUser=' + encodeURIComponent(currentUser))
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      var files = data.files || [];
+      if (!files.length) {
+        list.innerHTML = '<div style="text-align:center;padding:30px;font-size:12px;color:#bbb">Driveに保存済みファイルが見つかりません</div>';
+        return;
+      }
+      list.innerHTML = '';
+      files.forEach(function(f) {
+        var item = document.createElement('div');
+        item.style.cssText = 'padding:12px 16px;border-bottom:1px solid #f0f0f0;cursor:pointer';
+        item.innerHTML = '<div style="font-size:13px;font-weight:700;color:#1d3a6e">☁️ ' + escHtml(f.facility||f.name) + '</div>' +
+          '<div style="font-size:11px;color:#888;margin-top:2px">' + escHtml(f.date||'') + ' ／ ' + escHtml(f.inspector||'') + '</div>';
+        item.onmouseover = function() { item.style.background = '#f0f4ff'; };
+        item.onmouseout  = function() { item.style.background = ''; };
+        var doRestore = function(fid, fname, facility, date) {
+          return function() {
+            if (!confirm('「' + facility + '」 ' + date + ' のデータを復元しますか？\n現在の入力内容は上書きされます。')) return;
+            document.body.removeChild(ov);
+            showToast('Driveからデータ取得中...', 'ok');
+            fetch(GAS_URL + '?action=getFile&fileId=' + encodeURIComponent(fid))
+              .then(function(r) { return r.json(); })
+              .then(function(d) {
+                if (!d.ok) { showToast('取得失敗: ' + (d.message||''), 'err'); return; }
+                // CSVを解析してrestoreDataを呼ぶ
+                restoreFromCsv(d.content);
+              })
+              .catch(function() { showToast('Drive取得に失敗しました', 'err'); });
+          };
+        };
+        item.onclick = doRestore(f.id, f.name, f.facility||f.name, f.date||'');
+        item.ontouchstart = doRestore(f.id, f.name, f.facility||f.name, f.date||'');
+        list.appendChild(item);
+      });
+    })
+    .catch(function() {
+      list.innerHTML = '<div style="text-align:center;padding:20px;font-size:12px;color:#c62828">Drive接続に失敗しました</div>';
+    });
+}
+
+function restoreFromCsv(csvText) {
+  // CSVから点検データを復元（1ページ分のみ対応）
+  var text = csvText.replace(/^\uFEFF/, '');
+  var lines = text.split('\n');
+  showToast('データを復元中...', 'ok');
+  // 既存の全ページをリセット
+  elecPages = []; genPages = []; solarPages = []; battPages = [];
+  eSeq = 0; gSeq = 0; sSeq = 0; bSeq = 0;
+  var pages = document.getElementById('pages');
+  if (pages) {
+    var toRemove = [];
+    pages.querySelectorAll('.page').forEach(function(p) {
+      if (!p.id.startsWith('page-tool') && p.id !== 'page-hist') toRemove.push(p);
+    });
+    toRemove.forEach(function(p) { p.remove(); });
+  }
+  // CSVを解析して復元
+  var currentSection = '';
+  var currentFacility = '';
+  var currentPid = null;
+  var currentType = ''; // elec/gen/solar
+  var inKensin1 = false, inKensin2 = false;
+  var mult = 10;
+  lines.forEach(function(line) {
+    var parts = line.trim().split(',');
+    var key = parts[0] ? parts[0].trim() : '';
+    var val = parts[1] ? parts[1].trim() : '';
+    // セクションヘッダ
+    if (key.startsWith('【') && key.indexOf('電気室') >= 0) {
+      addElecPage(); currentPid = elecPages[elecPages.length-1].id; currentType='elec';
+      // 事業所名抽出
+      var m = key.match(/】事業所:\s*(.+)/);
+      currentFacility = m ? m[1].trim() : '';
+      setTimeout((function(pid, fac) { return function() {
+        var finp = document.getElementById(pid+'-facility');
+        if (finp) { finp.value = fac; }
+      }; })(currentPid, currentFacility), 50);
+      inKensin1 = false; inKensin2 = false;
+    } else if (key.startsWith('【') && key.indexOf('発電機') >= 0) {
+      addGenPage(); currentPid = genPages[genPages.length-1].id; currentType='gen';
+      inKensin1 = false; inKensin2 = false;
+    } else if (key.startsWith('【') && key.indexOf('太陽光') >= 0) {
+      addSolarPage(); currentPid = solarPages[solarPages.length-1].id; currentType='solar';
+      inKensin1 = false; inKensin2 = false;
+    }
+    if (!currentPid) return;
+    // 電力量計
+    if (key.indexOf('電力量計（検針）') >= 0) { inKensin1 = true; inKensin2 = false; }
+    if (key.indexOf('電力量計（本日）') >= 0) { inKensin2 = true; inKensin1 = false; }
+    if (key === '乗率' || key.indexOf('乗率') >= 0) { mult = parseFloat(val.replace('×',''))||10; }
+    // 気温・湿度
+    if (key === '気温') setValDelay(currentPid+'-temp', val);
+    if (key === '湿度') setValDelay(currentPid+'-hum', val);
+    // 電力量計の各値（乗率で逆算）
+    function unM(v) { var n = parseFloat(v); return isNaN(n) ? v : String(n/mult); }
+    if (inKensin1) {
+      if (key==='全日電力量') setValDelay(currentPid+'-k1-all', unM(val));
+      if (key==='有効電力量') setValDelay(currentPid+'-k1-eff', unM(val));
+      if (key==='無効電力量') setValDelay(currentPid+'-k1-react', unM(val));
+      if (key==='力率')      setValDelay(currentPid+'-k1-pf', val);
+      if (key==='最大需要電力') setValDelay(currentPid+'-k1-maxd', unM(val));
+      if (key==='累計最大電力') setValDelay(currentPid+'-k1-cumax', unM(val));
+    }
+    if (inKensin2) {
+      if (key==='全日電力量') setValDelay(currentPid+'-k2-all', unM(val));
+      if (key==='有効電力量') setValDelay(currentPid+'-k2-eff', unM(val));
+      if (key==='無効電力量') setValDelay(currentPid+'-k2-react', unM(val));
+      if (key==='需要電力')   setValDelay(currentPid+'-k2-maxd', unM(val));
+    }
+    // 電圧・電流
+    if (key==='電圧 R相') setValDelay(currentPid+'-vr', val);
+    if (key==='電圧 S相') setValDelay(currentPid+'-vs', val);
+    if (key==='電圧 T相') setValDelay(currentPid+'-vt', val);
+    if (key==='電流 R相') setValDelay(currentPid+'-ar', val);
+    if (key==='電流 S相') setValDelay(currentPid+'-as', val);
+    if (key==='電流 T相') setValDelay(currentPid+'-at', val);
+    // 記事欄
+    if (key === '記事欄' && val) {
+      setValDelay(currentPid+'-notes', val);
+    }
+  });
+  setTimeout(function() {
+    elecPages.forEach(function(p) { calcPower(p.id); syncPf(p.id); });
+    solarPages.forEach(function(p) { calcPower(p.id); });
+    markUnsaved();
+    showToast('復元完了！内容を確認してください', 'ok');
+  }, 300);
+}
+
+function setValDelay(id, val) {
+  setTimeout(function() {
+    var el = document.getElementById(id);
+    if (!el) return;
+    if (el.tagName === 'TEXTAREA') { el.value = (val && val !== '-') ? val : ''; return; }
+    if (val && val !== '-') { el.value = val; el.classList.remove('is-dash'); }
+    else { el.value = '-'; el.classList.add('is-dash'); }
+  }, 150);
 }
 
 function restoreData(data) {
