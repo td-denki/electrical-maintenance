@@ -190,7 +190,8 @@ body{font-family:-apple-system,sans-serif;background:#f0f2f5;color:#111;font-siz
 <div class="login-overlay" id="login-overlay">
   <div class="login-box">
     <div class="login-logo">匡電気管理事務所株式会社<br><span>電気設備月次点検入力アプリ</span></div>
-    <input class="login-inp" id="login-user" type="text" placeholder="氏名を入力" autocomplete="name">
+    <input class="login-inp" id="login-user" type="text" placeholder="ユーザー名" autocomplete="username">
+    <input class="login-inp" id="login-pass" type="password" placeholder="パスワード" autocomplete="current-password">
     <button class="login-btn" onclick="doLogin()">ログイン</button>
     <div class="login-err" id="login-err"></div>
     <div class="login-note">※ 許可されたユーザーのみ利用可能</div>
@@ -209,6 +210,7 @@ body{font-family:-apple-system,sans-serif;background:#f0f2f5;color:#111;font-siz
   </div>
   <button class="btn-sec" onclick="showHistory()">📋 履歴</button>
   <button class="btn-sec" onclick="downloadCSV()">CSV</button>
+  <button class="btn-sec" onclick="showRestoreModal()">📂 復元</button>
   <button class="btn-prim" onclick="confirmSave()">💾 保存</button>
 </div>
 <div class="auto-badge" id="auto-badge">自動保存</div>
@@ -263,28 +265,28 @@ function clearSession() {
 // ===== ログイン =====
 function doLogin() {
   var user = document.getElementById('login-user').value.trim();
+  var pass = document.getElementById('login-pass').value.trim();
   var errEl = document.getElementById('login-err');
-  if (!user) { errEl.textContent = '氏名を入力してください'; return; }
+  if (!user) { errEl.textContent = 'ユーザー名を入力してください'; return; }
+  if (!pass) { errEl.textContent = 'パスワードを入力してください'; return; }
   errEl.textContent = '確認中...';
   if (GAS_URL.indexOf('YOUR_SCRIPT_ID') >= 0) {
     errEl.textContent = '※ デモモード';
     setTimeout(function() { loginSuccess(user); }, 400);
     return;
   }
-  fetch(GAS_URL + '?action=auth&user=' + encodeURIComponent(user))
+  fetch(GAS_URL + '?action=auth&user=' + encodeURIComponent(user) + '&pass=' + encodeURIComponent(pass))
     .then(function(r) { return r.json(); })
     .then(function(j) {
       if (j.ok) {
         loginSuccess(user);
       } else {
-        errEl.textContent = '⛔ このユーザー名は許可されていません';
+        errEl.textContent = '⛔ ' + (j.message || 'ユーザー名またはパスワードが違います');
       }
     })
     .catch(function(err) {
-      // 通信エラー時はログイン許可（オフライン対応）
       console.warn('GAS auth error:', err);
-      errEl.textContent = 'GAS通信エラー。そのままログインします...';
-      setTimeout(function() { loginSuccess(user); }, 1000);
+      errEl.textContent = 'GAS通信エラー。再度お試しください';
     });
 }
 function loginSuccess(user) {
@@ -312,8 +314,10 @@ function doLogout() {
   clearSession();
   location.reload();
 }
-document.getElementById('login-user').addEventListener('keydown', function(e) {
-  if (e.key === 'Enter') doLogin();
+['login-user','login-pass'].forEach(function(id) {
+  document.getElementById(id).addEventListener('keydown', function(e) {
+    if (e.key === 'Enter') doLogin();
+  });
 });
 
 // ===== Drive =====
@@ -2159,6 +2163,219 @@ function showCsvViewer(fileName, csvText, dataObj) {
 function escHtml(str) {
   return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 }
+function showRestoreModal() {
+  // 端末の保存済みデータ一覧を表示して選択復元できるモーダル
+  var hist = [];
+  var r = store_get('tenken-history');
+  if (r) { try { hist = JSON.parse(r.value); } catch(e) {} }
+
+  var ov = document.createElement('div');
+  ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:300;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;padding-top:10px';
+  var box = document.createElement('div');
+  box.style.cssText = 'background:#fff;border-radius:12px;width:96vw;max-width:480px;max-height:90vh;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 8px 32px rgba(0,0,0,.3)';
+
+  var hdr = document.createElement('div');
+  hdr.style.cssText = 'padding:12px 16px;background:#1d3a6e;color:#fff;display:flex;align-items:center;flex-shrink:0';
+  var htitle = document.createElement('span');
+  htitle.style.cssText = 'flex:1;font-size:13px;font-weight:700';
+  htitle.textContent = '📂 保存データを復元';
+  var hclose = document.createElement('button');
+  hclose.textContent = '✕ 閉じる';
+  hclose.style.cssText = 'height:28px;padding:0 10px;border-radius:6px;border:none;background:rgba(255,255,255,.2);color:#fff;font-size:11px;cursor:pointer';
+  hclose.onclick = function() { document.body.removeChild(ov); };
+  hdr.appendChild(htitle); hdr.appendChild(hclose);
+
+  var note = document.createElement('div');
+  note.style.cssText = 'padding:8px 14px;background:#fff8e1;font-size:11px;color:#7a5800;border-bottom:1px solid #f0c040;flex-shrink:0';
+  note.textContent = '⚠️ 復元すると現在の入力内容は上書きされます。タップして選択してください。';
+
+  var list = document.createElement('div');
+  list.style.cssText = 'overflow-y:auto;flex:1';
+
+  if (!hist.length) {
+    list.innerHTML = '<div style="text-align:center;padding:30px;font-size:12px;color:#bbb">復元できるデータがありません</div>';
+  } else {
+    hist.forEach(function(h) {
+      var item = document.createElement('div');
+      item.style.cssText = 'padding:12px 16px;border-bottom:1px solid #f0f0f0;cursor:pointer';
+      item.innerHTML = '<div style="font-size:13px;font-weight:700;color:#1d3a6e">📋 ' + escHtml(h.facility||'未設定') + '</div>' +
+        '<div style="font-size:11px;color:#888;margin-top:2px">' + escHtml(h.date||'') + ' ／ ' + escHtml(h.inspector||'') + ' ／ ' + (h.savedAt||'').slice(0,16).replace('T',' ') + '</div>';
+      item.onmouseover = function() { item.style.background = '#f0f4ff'; };
+      item.onmouseout  = function() { item.style.background = ''; };
+      var doRestore = function(hh) {
+        return function() {
+          var stored = store_get(hh.key);
+          if (!stored) { showToast('データが見つかりません', 'err'); return; }
+          try {
+            var data = JSON.parse(stored.value);
+            if (!confirm('「' + (hh.facility||'この記録') + '」 ' + hh.date + ' のデータを復元しますか？\n現在の入力内容は上書きされます。')) return;
+            document.body.removeChild(ov);
+            restoreData(data);
+          } catch(e) { showToast('復元に失敗しました', 'err'); }
+        };
+      };
+      item.onclick = doRestore(h);
+      item.ontouchstart = doRestore(h);
+      list.appendChild(item);
+    });
+  }
+
+  box.appendChild(hdr); box.appendChild(note); box.appendChild(list);
+  ov.appendChild(box);
+  ov.onclick = function(e) { if (e.target === ov) document.body.removeChild(ov); };
+  document.body.appendChild(ov);
+}
+
+function restoreData(data) {
+  // 既存ページをリセットしてデータを再構築
+  elecPages = []; genPages = []; solarPages = []; battPages = [];
+  eSeq = 0; gSeq = 0; sSeq = 0; bSeq = 0;
+  document.getElementById('pages').querySelectorAll('.page:not(#page-hist)').forEach(function(p) {
+    if (!p.id.startsWith('page-tool')) p.remove();
+  });
+
+  // 電気室を復元
+  (data.elec || []).forEach(function(pg) {
+    addElecPage();
+    var pid = elecPages[elecPages.length - 1].id;
+    setTimeout((function(pid, pg) { return function() { fillElecPage(pid, pg); }; })(pid, pg), 100);
+  });
+  // 発電機を復元
+  (data.gen || []).forEach(function(pg) {
+    addGenPage();
+    var pid = genPages[genPages.length - 1].id;
+    setTimeout((function(pid, pg) { return function() { fillGenPage(pid, pg); }; })(pid, pg), 100);
+  });
+  // 太陽光を復元
+  (data.solar || []).forEach(function(pg) {
+    addSolarPage();
+    var pid = solarPages[solarPages.length - 1].id;
+    setTimeout((function(pid, pg) { return function() { fillSolarPage(pid, pg); }; })(pid, pg), 100);
+  });
+
+  showToast('データを復元しました', 'ok');
+}
+
+function setVal(id, val) {
+  var el = document.getElementById(id);
+  if (!el) return;
+  if (val && val !== '-') { el.value = val; el.classList.remove('is-dash'); }
+  else { el.value = '-'; el.classList.add('is-dash'); }
+}
+
+function fillElecPage(pid, pg) {
+  // 事業所名
+  var fsel = document.getElementById(pid + '-fsel');
+  var finp = document.getElementById(pid + '-facility');
+  if (fsel && finp) {
+    var opts = fsel.options;
+    var matched = false;
+    for (var i = 0; i < opts.length; i++) {
+      if (opts[i].value === pg.facility) { fsel.value = opts[i].value; matched = true; break; }
+    }
+    if (!matched && pg.facility && pg.facility !== '-') {
+      fsel.value = '__other__'; finp.style.display = 'block';
+    }
+    finp.value = (pg.facility && pg.facility !== '-') ? pg.facility : '';
+  }
+  // 気温・湿度
+  setVal(pid + '-temp', pg.temp); setVal(pid + '-hum', pg.hum);
+  // 電力量計
+  if (pg.kensin1) {
+    var mult = pg.kensin1.mult || 10;
+    var msel = document.getElementById(pid + '-k1-mult');
+    if (msel) msel.value = String(mult);
+    // 乗算済み値を逆算して入力欄に表示
+    function unMult(v) { var n = parseFloat(v); return isNaN(n) ? v : String(n / mult); }
+    setVal(pid + '-k1-all',   unMult(pg.kensin1.all));
+    setVal(pid + '-k1-eff',   unMult(pg.kensin1.eff));
+    setVal(pid + '-k1-react', unMult(pg.kensin1.react));
+    setVal(pid + '-k1-pf',    pg.kensin1.pf);
+    setVal(pid + '-k1-maxd',  unMult(pg.kensin1.maxd));
+    setVal(pid + '-k1-cumax', unMult(pg.kensin1.cumax));
+    syncPf(pid);
+  }
+  if (pg.kensin2) {
+    var mult2 = (pg.kensin1 && pg.kensin1.mult) || 10;
+    function unMult2(v) { var n = parseFloat(v); return isNaN(n) ? v : String(n / mult2); }
+    setVal(pid + '-k2-all',   unMult2(pg.kensin2.all));
+    setVal(pid + '-k2-eff',   unMult2(pg.kensin2.eff));
+    setVal(pid + '-k2-react', unMult2(pg.kensin2.react));
+    setVal(pid + '-k2-maxd',  unMult2(pg.kensin2.maxd));
+  }
+  // 電圧・電流
+  setVal(pid + '-vr', pg.vr); setVal(pid + '-vs', pg.vs); setVal(pid + '-vt', pg.vt);
+  setVal(pid + '-ar', pg.ar); setVal(pid + '-as', pg.as); setVal(pid + '-at', pg.at);
+  calcPower(pid);
+  // 点検項目
+  var epg = elecPages.find(function(p) { return p.id === pid; });
+  if (epg && pg.judgments) {
+    epg.jState = Object.assign({}, pg.judgments);
+    Object.keys(pg.judgments).forEach(function(k) {
+      var grp = document.querySelector('#page-' + pid + ' .jbtns[data-key="' + k + '"]');
+      if (!grp) return;
+      grp.querySelectorAll('.jbtn').forEach(function(b) { b.classList.remove('on'); });
+      var val = pg.judgments[k];
+      var target = val === 'ok' ? '.jbtn.ok' : val === 'warn' ? '.jbtn.warn' : '.jbtn.na';
+      var btn = grp.querySelector(target);
+      if (btn) btn.classList.add('on');
+    });
+    updateSBar(pid, 'e');
+  }
+  // 各種測定値
+  if (pg.sokVals) {
+    Object.keys(pg.sokVals).forEach(function(label) {
+      var cleanId = label.replace(/[^a-zA-Z]/g, '');
+      setVal(pid + '-sok-' + cleanId, pg.sokVals[label]);
+    });
+  }
+  // 記事欄
+  var notesEl = document.getElementById(pid + '-notes');
+  if (notesEl && pg.notes && pg.notes !== '-') notesEl.value = pg.notes;
+  markUnsaved();
+}
+
+function fillGenPage(pid, pg) {
+  var gpg = genPages.find(function(p) { return p.id === pid; });
+  if (gpg && pg.judgments) {
+    gpg.jState = Object.assign({}, pg.judgments);
+    Object.keys(pg.judgments).forEach(function(k) {
+      var grp = document.querySelector('#page-' + pid + ' .jbtns[data-key="' + k + '"]');
+      if (!grp) return;
+      grp.querySelectorAll('.jbtn').forEach(function(b) { b.classList.remove('on'); });
+      var val = pg.judgments[k];
+      var btn = grp.querySelector(val === 'ok' ? '.jbtn.ok' : val === 'warn' ? '.jbtn.warn' : '.jbtn.na');
+      if (btn) btn.classList.add('on');
+    });
+    updateSBar(pid, 'g');
+  }
+  var notesEl = document.getElementById(pid + '-notes');
+  if (notesEl && pg.notes && pg.notes !== '-') notesEl.value = pg.notes;
+  markUnsaved();
+}
+
+function fillSolarPage(pid, pg) {
+  setVal(pid + '-vr', pg.vr); setVal(pid + '-vs', pg.vs); setVal(pid + '-vt', pg.vt);
+  setVal(pid + '-ar', pg.ar); setVal(pid + '-as', pg.as); setVal(pid + '-at', pg.at);
+  calcPower(pid);
+  var spg = solarPages.find(function(p) { return p.id === pid; });
+  if (spg && pg.judgments) {
+    spg.jState = Object.assign({}, pg.judgments);
+    Object.keys(pg.judgments).forEach(function(k) {
+      var grp = document.querySelector('#page-' + pid + ' .jbtns[data-key="' + k + '"]');
+      if (!grp) return;
+      grp.querySelectorAll('.jbtn').forEach(function(b) { b.classList.remove('on'); });
+      var val = pg.judgments[k];
+      var btn = grp.querySelector(val === 'ok' ? '.jbtn.ok' : val === 'warn' ? '.jbtn.warn' : '.jbtn.na');
+      if (btn) btn.classList.add('on');
+    });
+    updateSBar(pid, 's');
+  }
+  var notesEl = document.getElementById(pid + '-notes');
+  if (notesEl && pg.notes && pg.notes !== '-') notesEl.value = pg.notes;
+  markUnsaved();
+}
+
 function showHistory() {
   // 先にページを構築・読み込みしてからタブ切替
   var old = document.getElementById('page-hist');
@@ -2345,6 +2562,12 @@ function showAutoBadge() {
   b.style.display = 'block';
   setTimeout(function() { b.style.display = 'none'; }, 2500);
 }
+
+// ===== ブラウザの戻る・進むを無効化 =====
+history.pushState(null, '', location.href);
+window.addEventListener('popstate', function() {
+  history.pushState(null, '', location.href);
+});
 
 // ===== ページロード時にセッション復元・リフレッシュ対応 =====
 // リフレッシュ前に自動保存
